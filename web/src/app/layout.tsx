@@ -25,10 +25,10 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Get HTTP headers - headers() is actually synchronous in Next.js 14 and below
-  // but will be async in future versions
+  // Get HTTP headers - headers() will be async in future Next.js versions
   const headersList = headers();
-  const cookie = headersList.get('cookie') || null;
+  // Use null as a fallback if no cookie is present
+  const cookie = headersList ? headersList.get('cookie') || null : null;
   
   return (
     <html lang="en" suppressHydrationWarning>
