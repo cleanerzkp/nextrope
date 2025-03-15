@@ -32,6 +32,7 @@ import {
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { use } from "react";
 
 // This would typically come from an API or blockchain call
 const getMockEscrow = (id: string) => {
@@ -55,12 +56,20 @@ const getMockEscrow = (id: string) => {
   };
 };
 
-export default function EscrowDetail({ params }: { params: { id: string } }) {
+// For client components in Next.js 15, use the React 'use' hook with Promise params
+// This is the new way to handle params in Next.js 15
+export default function EscrowDetail({ 
+  params 
+}: { 
+  params: Promise<{ id: string }>
+}) {
   const router = useRouter();
   const { isConnected, address } = useAppKitAccount();
   const [isLoading, setIsLoading] = useState(false);
   
-  const escrow = getMockEscrow(params.id);
+  // Use the 'use' hook for handling Promise params in client components
+  const { id } = use(params);
+  const escrow = getMockEscrow(id);
   
   // Determine the user's role in this escrow
   const isSeller = address && address.startsWith('0x9876'); // Mock check
@@ -82,14 +91,12 @@ export default function EscrowDetail({ params }: { params: { id: string } }) {
     }
   };
   
-  const handleAction = (action: string) => {
+  const processAction = (actionType: string) => {
     setIsLoading(true);
+    console.log(`Processing ${actionType} action`);
     
-    // Simulate blockchain transaction
     setTimeout(() => {
       setIsLoading(false);
-      
-      // For the demo, just navigate back to the escrows list
       router.push('/escrows');
     }, 2000);
   };
@@ -204,7 +211,7 @@ export default function EscrowDetail({ params }: { params: { id: string } }) {
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleAction('dispute')}>
+                        <AlertDialogAction onClick={() => processAction('dispute')}>
                           {isLoading ? 'Processing...' : 'Confirm'}
                         </AlertDialogAction>
                       </AlertDialogFooter>
@@ -226,7 +233,7 @@ export default function EscrowDetail({ params }: { params: { id: string } }) {
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleAction('release')}>
+                        <AlertDialogAction onClick={() => processAction('release')}>
                           {isLoading ? 'Processing...' : 'Confirm'}
                         </AlertDialogAction>
                       </AlertDialogFooter>
@@ -248,7 +255,7 @@ export default function EscrowDetail({ params }: { params: { id: string } }) {
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleAction('cancel')}>
+                        <AlertDialogAction onClick={() => processAction('cancel')}>
                           {isLoading ? 'Processing...' : 'Confirm'}
                         </AlertDialogAction>
                       </AlertDialogFooter>
@@ -277,7 +284,7 @@ export default function EscrowDetail({ params }: { params: { id: string } }) {
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleAction('refund')}>
+                            <AlertDialogAction onClick={() => processAction('refund')}>
                               {isLoading ? 'Processing...' : 'Confirm'}
                             </AlertDialogAction>
                           </AlertDialogFooter>
@@ -298,7 +305,7 @@ export default function EscrowDetail({ params }: { params: { id: string } }) {
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleAction('release')}>
+                            <AlertDialogAction onClick={() => processAction('release')}>
                               {isLoading ? 'Processing...' : 'Confirm'}
                             </AlertDialogAction>
                           </AlertDialogFooter>
@@ -319,7 +326,7 @@ export default function EscrowDetail({ params }: { params: { id: string } }) {
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleAction('split')}>
+                            <AlertDialogAction onClick={() => processAction('split')}>
                               {isLoading ? 'Processing...' : 'Confirm'}
                             </AlertDialogAction>
                           </AlertDialogFooter>

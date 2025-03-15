@@ -2,6 +2,7 @@
 
 import { ConnectButton } from '@/components/connect-button'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { WalletStatus } from '@/components/wallet-status'
 import { useAppKitAccount } from '@reown/appkit/react'
 import Link from 'next/link'
 
@@ -32,12 +33,8 @@ export function NavBar() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          {isConnected && (
-            <Link href="/profile" className="text-sm font-medium transition-colors hover:text-primary">
-              Profile
-            </Link>
-          )}
           <ThemeToggle />
+          <WalletStatus />
           <ConnectButton />
         </div>
       </div>
