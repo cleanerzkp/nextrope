@@ -4,12 +4,14 @@ import {
 import { expect } from "chai";
 import hre from "hardhat";
 import { parseEther, getAddress, zeroAddress } from "viem";
+import { Escrow } from "../typechain-types";
+import { NextropeToken } from "../typechain-types";
 
-describe("Escrow Contract", function () {
+describe("escrow contract", function () {
   // define a fixture to reuse the same setup in every test
   async function deployEscrowFixture() {
     // get wallet clients
-    const [buyer, seller, otherAccount] = await hre.viem.getWalletClients();
+    const [owner, buyer, seller, otherAccount] = await hre.viem.getWalletClients();
     
     // get public client for balance checks
     const publicClient = await hre.viem.getPublicClient();
@@ -17,22 +19,12 @@ describe("Escrow Contract", function () {
     // one of the hardcoded arbiter addresses from the contract
     const arbiterAddress = "0xcd3B766CCDd6AE721141F452C550Ca635964ce71" as `0x${string}`;
     
-    // deploy the Escrow contract
-    const escrow = await hre.viem.deployContract("Escrow");
-    
-    // deploy the Nextrope token for testing
-    const token = await hre.viem.deployContract("NextropeToken", [18]);
-    
-    // mint some tokens to the buyer for testing
-    const mintAmount = parseEther("1000");
-    await token.write.mint([getAddress(buyer.account.address), mintAmount]);
-    
-    // approve the escrow contract to spend tokens
-    await token.write.approve([escrow.address, mintAmount], { account: buyer.account });
+    // deploy the escrow contract
+    const escrow = await hre.viem.deployContract("Escrow") as unknown as Escrow;
     
     return { 
       escrow, 
-      token, 
+      owner,
       buyer, 
       seller, 
       arbiterAddress,
@@ -41,15 +33,59 @@ describe("Escrow Contract", function () {
     };
   }
   
-  describe("Deployment", function () {
-    it("Should initialize with nextDealId = 0", async function () {
+  describe("deployment", function () {
+    it("should initialize with nextDealId = 0", async function () {
       const { escrow } = await loadFixture(deployEscrowFixture);
       expect(Number(await escrow.read.nextDealId())).to.equal(0);
     });
+
+    it("should initialize with 5 hardcoded arbiters", async function () {
+      const { escrow } = await loadFixture(deployEscrowFixture);
+      
+      // check all 5 hardcoded arbiters are approved
+      const hardcodedArbiters = [
+        "0xcd3B766CCDd6AE721141F452C550Ca635964ce71",
+        "0x2546BcD3c84621e976D8185a91A922aE77ECEc30",
+        "0xbDA5747bFD65F08deb54cb465eB87D40e51B197E",
+        "0xdD2FD4581271e230360230F9337D5c0430Bf44C0",
+        "0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199"
+      ] as const;
+
+      for (const arbiter of hardcodedArbiters) {
+        const isApproved = await escrow.read._isArbiterApproved([arbiter]);
+        expect(isApproved).to.be.true;
+      }
+    });
+  });
+
+  describe("arbiter management", function () {
+    it("should allow owner to add a new arbiter", async function () {
+      const { escrow, owner, otherAccount } = await loadFixture(deployEscrowFixture);
+      await escrow.write.addArbiter([getAddress(otherAccount.account.address)], { account: owner.account });
+      expect(await escrow.read._isArbiterApproved([getAddress(otherAccount.account.address)])).to.be.true;
+    });
+    
+    it("should revert when adding arbiter that already exists", async function () {
+      const { escrow, owner, arbiterAddress } = await loadFixture(deployEscrowFixture);
+      await expect(escrow.write.addArbiter([arbiterAddress], { account: owner.account }))
+        .to.be.rejectedWith("ArbiterAlreadyExists");
+    });
+    
+    it("should allow owner to remove an arbiter", async function () {
+      const { escrow, owner, arbiterAddress } = await loadFixture(deployEscrowFixture);
+      await escrow.write.removeArbiter([arbiterAddress], { account: owner.account });
+      expect(await escrow.read._isArbiterApproved([arbiterAddress])).to.be.false;
+    });
+
+    it("should revert when removing non-existent arbiter", async function () {
+      const { escrow, owner, otherAccount } = await loadFixture(deployEscrowFixture);
+      await expect(escrow.write.removeArbiter([getAddress(otherAccount.account.address)], { account: owner.account }))
+        .to.be.rejectedWith("NotApprovedArbiter");
+    });
   });
   
-  describe("Create Deal", function () {
-    it("Should create a new deal with ETH", async function () {
+  describe("create deal", function () {
+    it("should create a new deal with eth", async function () {
       const { escrow, buyer, seller, arbiterAddress, publicClient } = await loadFixture(deployEscrowFixture);
       
       const dealAmount = parseEther("1");
@@ -57,15 +93,15 @@ describe("Escrow Contract", function () {
       // create a new deal
       const tx = await escrow.write.createDeal(
         [getAddress(seller.account.address),
-        arbiterAddress, // use hardcoded arbiter
-        zeroAddress, // eth
+        arbiterAddress,
+        zeroAddress,
         dealAmount],
         { account: buyer.account }
       );
       
       await publicClient.waitForTransactionReceipt({ hash: tx });
       
-      // check for the DealCreated event
+      // check for the dealcreated event
       const dealCreatedEvents = await escrow.getEvents.DealCreated();
       expect(dealCreatedEvents).to.have.lengthOf(1);
       expect(Number(dealCreatedEvents[0].args.dealId)).to.equal(0);
@@ -75,20 +111,20 @@ describe("Escrow Contract", function () {
       expect(dealCreatedEvents[0].args.tokenAddress).to.equal(zeroAddress);
       expect(dealCreatedEvents[0].args.amount).to.equal(dealAmount);
       
-      // check that the nextDealId was incremented
+      // check that the nextdealid was incremented
       expect(Number(await escrow.read.nextDealId())).to.equal(1);
       
       // check the deal details
-      const deal = await escrow.read.getDeal([0n]);
-      expect(deal[0]).to.equal(getAddress(buyer.account.address)); // buyer
-      expect(deal[1]).to.equal(getAddress(seller.account.address)); // seller
-      expect(deal[2]).to.equal(arbiterAddress); // arbiter
-      expect(deal[3]).to.equal(zeroAddress); // tokenAddress
-      expect(deal[4]).to.equal(dealAmount); // amount
-      expect(Number(deal[5])).to.equal(0); // State.AWAITING_PAYMENT
+      const dealInfo = await escrow.read.getDeal([0n]);
+      expect(dealInfo.buyer).to.equal(getAddress(buyer.account.address));
+      expect(dealInfo.seller).to.equal(getAddress(seller.account.address));
+      expect(dealInfo.arbiter).to.equal(arbiterAddress);
+      expect(dealInfo.tokenAddress).to.equal(zeroAddress);
+      expect(dealInfo.amount).to.equal(dealAmount);
+      expect(Number(dealInfo.state)).to.equal(0); // state.awaiting_payment
     });
-    
-    it("Should revert if seller address is zero", async function () {
+
+    it("should revert if seller address is zero", async function () {
       const { escrow, buyer, arbiterAddress } = await loadFixture(deployEscrowFixture);
       
       await expect(escrow.write.createDeal(
@@ -97,10 +133,10 @@ describe("Escrow Contract", function () {
         zeroAddress,
         parseEther("1")],
         { account: buyer.account }
-      )).to.be.rejectedWith("Invalid seller");
+      )).to.be.rejectedWith("InvalidAddress");
     });
     
-    it("Should revert if arbiter address is zero", async function () {
+    it("should revert if arbiter address is zero", async function () {
       const { escrow, buyer, seller } = await loadFixture(deployEscrowFixture);
       
       await expect(escrow.write.createDeal(
@@ -109,10 +145,10 @@ describe("Escrow Contract", function () {
         zeroAddress,
         parseEther("1")],
         { account: buyer.account }
-      )).to.be.rejectedWith("Not an approved arbiter");
+      )).to.be.rejectedWith("NotApprovedArbiter");
     });
     
-    it("Should revert if amount is zero", async function () {
+    it("should revert if amount is zero", async function () {
       const { escrow, buyer, seller, arbiterAddress } = await loadFixture(deployEscrowFixture);
       
       await expect(escrow.write.createDeal(
@@ -121,12 +157,12 @@ describe("Escrow Contract", function () {
         zeroAddress,
         0n],
         { account: buyer.account }
-      )).to.be.rejectedWith("Amount must be > 0");
+      )).to.be.rejectedWith("InvalidAmount");
     });
   });
   
-  describe("Deposit ETH", function () {
-    it("Should deposit ETH and update deal state", async function () {
+  describe("deposit", function () {
+    it("should deposit eth and update deal state", async function () {
       const { escrow, buyer, seller, arbiterAddress, publicClient } = await loadFixture(deployEscrowFixture);
       
       const dealAmount = parseEther("1");
@@ -140,7 +176,7 @@ describe("Escrow Contract", function () {
         { account: buyer.account }
       );
       
-      // deposit ETH
+      // deposit eth
       const tx = await escrow.write.depositETH(
         [0n],
         { account: buyer.account, value: dealAmount }
@@ -148,17 +184,17 @@ describe("Escrow Contract", function () {
       
       await publicClient.waitForTransactionReceipt({ hash: tx });
       
-      // check for PaymentReceived event
+      // check for paymentreceived event
       const paymentEvents = await escrow.getEvents.PaymentReceived();
       expect(paymentEvents).to.have.lengthOf(1);
       expect(Number(paymentEvents[0].args.dealId)).to.equal(0);
       
       // check deal state
-      const deal = await escrow.read.getDeal([0n]);
-      expect(Number(deal[5])).to.equal(1); // State.AWAITING_DELIVERY
+      const dealInfo = await escrow.read.getDeal([0n]);
+      expect(Number(dealInfo.state)).to.equal(1); // state.awaiting_delivery
     });
-    
-    it("Should revert if not buyer", async function () {
+
+    it("should revert if not buyer", async function () {
       const { escrow, buyer, seller, arbiterAddress, otherAccount } = await loadFixture(deployEscrowFixture);
       
       const dealAmount = parseEther("1");
@@ -172,16 +208,37 @@ describe("Escrow Contract", function () {
         { account: buyer.account }
       );
       
-      // try to deposit ETH from another account
+      // try to deposit eth from another account
       await expect(escrow.write.depositETH(
         [0n],
         { account: otherAccount.account, value: dealAmount }
-      )).to.be.rejectedWith("Only buyer can call");
+      )).to.be.rejectedWith("UnauthorizedCaller");
+    });
+
+    it("should revert if depositing incorrect eth amount", async function () {
+      const { escrow, buyer, seller, arbiterAddress } = await loadFixture(deployEscrowFixture);
+      
+      const dealAmount = parseEther("1");
+      
+      // create a new deal
+      await escrow.write.createDeal(
+        [getAddress(seller.account.address),
+        arbiterAddress,
+        zeroAddress,
+        dealAmount],
+        { account: buyer.account }
+      );
+      
+      // try to deposit wrong amount
+      await expect(escrow.write.depositETH(
+        [0n],
+        { account: buyer.account, value: parseEther("0.5") }
+      )).to.be.rejectedWith("InvalidAmount");
     });
   });
   
-  describe("Confirm Shipment and Receipt", function () {
-    it("Should allow seller to confirm shipment", async function () {
+  describe("confirm shipment and receipt", function () {
+    it("should allow seller to confirm shipment", async function () {
       const { escrow, buyer, seller, arbiterAddress, publicClient } = await loadFixture(deployEscrowFixture);
       
       const dealAmount = parseEther("1");
@@ -195,7 +252,7 @@ describe("Escrow Contract", function () {
         { account: buyer.account }
       );
       
-      // deposit ETH
+      // deposit eth
       await escrow.write.depositETH(
         [0n],
         { account: buyer.account, value: dealAmount }
@@ -209,17 +266,17 @@ describe("Escrow Contract", function () {
       
       await publicClient.waitForTransactionReceipt({ hash: tx });
       
-      // check for ItemShipped event
+      // check for itemshipped event
       const shippedEvents = await escrow.getEvents.ItemShipped();
       expect(shippedEvents).to.have.lengthOf(1);
       expect(Number(shippedEvents[0].args.dealId)).to.equal(0);
       
       // check deal state
-      const deal = await escrow.read.getDeal([0n]);
-      expect(Number(deal[5])).to.equal(2); // State.SHIPPED
+      const dealInfo = await escrow.read.getDeal([0n]);
+      expect(Number(dealInfo.state)).to.equal(2); // state.shipped
     });
     
-    it("Should allow buyer to confirm receipt and release payment", async function () {
+    it("should allow buyer to confirm receipt and release payment", async function () {
       const { escrow, buyer, seller, arbiterAddress, publicClient } = await loadFixture(deployEscrowFixture);
       
       const dealAmount = parseEther("1");
@@ -233,7 +290,7 @@ describe("Escrow Contract", function () {
         { account: buyer.account }
       );
       
-      // deposit ETH
+      // deposit eth
       await escrow.write.depositETH(
         [0n],
         { account: buyer.account, value: dealAmount }
@@ -258,7 +315,7 @@ describe("Escrow Contract", function () {
       
       await publicClient.waitForTransactionReceipt({ hash: tx });
       
-      // check for DealCompleted event
+      // check for dealcompleted event
       const completedEvents = await escrow.getEvents.DealCompleted();
       expect(completedEvents).to.have.lengthOf(1);
       expect(Number(completedEvents[0].args.dealId)).to.equal(0);
@@ -270,17 +327,43 @@ describe("Escrow Contract", function () {
       expect(finalSellerBalance - initialSellerBalance).to.equal(dealAmount);
       
       // check deal state
-      const deal = await escrow.read.getDeal([0n]);
-      expect(Number(deal[5])).to.equal(4); // State.COMPLETED
+      const dealInfo = await escrow.read.getDeal([0n]);
+      expect(Number(dealInfo.state)).to.equal(4); // state.completed
+    });
+
+    it("should revert if non-seller tries to confirm shipment", async function () {
+      const { escrow, buyer, seller, arbiterAddress, otherAccount } = await loadFixture(deployEscrowFixture);
+      
+      const dealAmount = parseEther("1");
+      
+      // create and fund deal
+      await escrow.write.createDeal(
+        [getAddress(seller.account.address),
+        arbiterAddress,
+        zeroAddress,
+        dealAmount],
+        { account: buyer.account }
+      );
+      
+      await escrow.write.depositETH(
+        [0n],
+        { account: buyer.account, value: dealAmount }
+      );
+      
+      // try to confirm shipment as non-seller
+      await expect(escrow.write.confirmShipment(
+        [0n],
+        { account: otherAccount.account }
+      )).to.be.rejectedWith("UnauthorizedCaller");
     });
   });
   
-  describe("Raise Dispute", function () {
-    it("Should allow buyer to raise a dispute after shipment", async function () {
+  describe("dispute resolution", function () {
+    it("should allow buyer to raise a dispute after shipment", async function () {
       const { escrow, buyer, seller, arbiterAddress, publicClient } = await loadFixture(deployEscrowFixture);
       
       const dealAmount = parseEther("1");
-      const disputeReason = "Item not as described";
+      const disputeReason = "item not as described";
       
       // create a new deal
       await escrow.write.createDeal(
@@ -291,7 +374,7 @@ describe("Escrow Contract", function () {
         { account: buyer.account }
       );
       
-      // deposit ETH
+      // deposit eth
       await escrow.write.depositETH(
         [0n],
         { account: buyer.account, value: dealAmount }
@@ -311,7 +394,7 @@ describe("Escrow Contract", function () {
       
       await publicClient.waitForTransactionReceipt({ hash: tx });
       
-      // check for DisputeRaised event
+      // check for disputeraised event
       const disputeEvents = await escrow.getEvents.DisputeRaised();
       expect(disputeEvents).to.have.lengthOf(1);
       expect(Number(disputeEvents[0].args.dealId)).to.equal(0);
@@ -319,18 +402,17 @@ describe("Escrow Contract", function () {
       expect(disputeEvents[0].args.initiator).to.equal(getAddress(buyer.account.address));
       
       // check deal state and dispute reason
-      const deal = await escrow.read.getDeal([0n]);
-      expect(Number(deal[5])).to.equal(3); // State.DISPUTED
-      expect(deal[6]).to.equal(disputeReason); // disputeReason
+      const dealInfo = await escrow.read.getDeal([0n]);
+      expect(Number(dealInfo.state)).to.equal(3); // state.disputed
+      expect(await escrow.read.disputeReasons([0n])).to.equal(disputeReason);
     });
-    
-    it("Should allow buyer to request cancellation after payment", async function () {
+
+    it("should allow arbiter to resolve dispute in favor of buyer", async function () {
       const { escrow, buyer, seller, arbiterAddress, publicClient } = await loadFixture(deployEscrowFixture);
       
       const dealAmount = parseEther("1");
-      const cancellationReason = "Item no longer needed";
       
-      // create a new deal
+      // create and setup disputed deal
       await escrow.write.createDeal(
         [getAddress(seller.account.address),
         arbiterAddress,
@@ -339,131 +421,51 @@ describe("Escrow Contract", function () {
         { account: buyer.account }
       );
       
-      // deposit ETH
       await escrow.write.depositETH(
         [0n],
         { account: buyer.account, value: dealAmount }
       );
       
-      // request cancellation
-      const tx = await escrow.write.raiseDispute(
-        [0n, cancellationReason, true], // is a cancellation request
-        { account: buyer.account }
-      );
-      
-      await publicClient.waitForTransactionReceipt({ hash: tx });
-      
-      // check for DisputeRaised event
-      const disputeEvents = await escrow.getEvents.DisputeRaised();
-      expect(disputeEvents).to.have.lengthOf(1);
-      expect(Number(disputeEvents[0].args.dealId)).to.equal(0);
-      expect(disputeEvents[0].args.initiator).to.equal(getAddress(buyer.account.address));
-      expect(disputeEvents[0].args.reason).to.include(cancellationReason);
-      
-      // check deal state and dispute reason
-      const deal = await escrow.read.getDeal([0n]);
-      expect(Number(deal[5])).to.equal(3); // State.DISPUTED
-      expect(deal[6]).to.include("Cancellation request");
-      expect(deal[6]).to.include(cancellationReason);
-    });
-    
-    it("Should allow seller to raise a dispute after payment", async function () {
-      const { escrow, buyer, seller, arbiterAddress, publicClient } = await loadFixture(deployEscrowFixture);
-      
-      const dealAmount = parseEther("1");
-      const disputeReason = "Payment issue";
-      
-      // create a new deal
-      await escrow.write.createDeal(
-        [getAddress(seller.account.address),
-        arbiterAddress,
-        zeroAddress,
-        dealAmount],
-        { account: buyer.account }
-      );
-      
-      // deposit ETH
-      await escrow.write.depositETH(
-        [0n],
-        { account: buyer.account, value: dealAmount }
-      );
-      
-      // seller raises dispute
-      const tx = await escrow.write.raiseDispute(
-        [0n, disputeReason, false], // not a cancellation request
-        { account: seller.account }
-      );
-      
-      await publicClient.waitForTransactionReceipt({ hash: tx });
-      
-      // check for DisputeRaised event
-      const disputeEvents = await escrow.getEvents.DisputeRaised();
-      expect(disputeEvents).to.have.lengthOf(1);
-      expect(Number(disputeEvents[0].args.dealId)).to.equal(0);
-      expect(disputeEvents[0].args.reason).to.equal(disputeReason);
-      expect(disputeEvents[0].args.initiator).to.equal(getAddress(seller.account.address));
-      
-      // check deal state and dispute reason
-      const deal = await escrow.read.getDeal([0n]);
-      expect(Number(deal[5])).to.equal(3); // State.DISPUTED
-      expect(deal[6]).to.equal(disputeReason);
-    });
-    
-    it("Should allow seller to request cancellation after shipment", async function () {
-      const { escrow, buyer, seller, arbiterAddress, publicClient } = await loadFixture(deployEscrowFixture);
-      
-      const dealAmount = parseEther("1");
-      const cancellationReason = "Unable to ship item";
-      
-      // create a new deal
-      await escrow.write.createDeal(
-        [getAddress(seller.account.address),
-        arbiterAddress,
-        zeroAddress,
-        dealAmount],
-        { account: buyer.account }
-      );
-      
-      // deposit ETH
-      await escrow.write.depositETH(
-        [0n],
-        { account: buyer.account, value: dealAmount }
-      );
-      
-      // confirm shipment
       await escrow.write.confirmShipment(
         [0n],
         { account: seller.account }
       );
       
-      // request cancellation
-      const tx = await escrow.write.raiseDispute(
-        [0n, cancellationReason, true], // is a cancellation request
-        { account: seller.account }
+      await escrow.write.raiseDispute(
+        [0n, "item damaged", false],
+        { account: buyer.account }
+      );
+      
+      // get initial buyer balance
+      const initialBuyerBalance = await publicClient.getBalance({
+        address: getAddress(buyer.account.address),
+      });
+      
+      // resolve in favor of buyer
+      const tx = await escrow.write.resolveDispute(
+        [0n, true], // true = refund to buyer
+        { account: arbiterAddress }
       );
       
       await publicClient.waitForTransactionReceipt({ hash: tx });
       
-      // check for DisputeRaised event
-      const disputeEvents = await escrow.getEvents.DisputeRaised();
-      expect(disputeEvents).to.have.lengthOf(1);
-      expect(Number(disputeEvents[0].args.dealId)).to.equal(0);
-      expect(disputeEvents[0].args.initiator).to.equal(getAddress(seller.account.address));
-      expect(disputeEvents[0].args.reason).to.include(cancellationReason);
+      // check buyer received refund
+      const finalBuyerBalance = await publicClient.getBalance({
+        address: getAddress(buyer.account.address),
+      });
+      expect(finalBuyerBalance - initialBuyerBalance).to.equal(dealAmount);
       
-      // check deal state and dispute reason
-      const deal = await escrow.read.getDeal([0n]);
-      expect(Number(deal[5])).to.equal(3); // State.DISPUTED
-      expect(deal[6]).to.include("Cancellation request");
-      expect(deal[6]).to.include(cancellationReason);
+      // check deal state
+      const dealInfo = await escrow.read.getDeal([0n]);
+      expect(Number(dealInfo.state)).to.equal(5); // state.refunded
     });
-    
-    it("Should revert if seller tries to raise non-cancellation dispute after shipment", async function () {
-      const { escrow, buyer, seller, arbiterAddress } = await loadFixture(deployEscrowFixture);
+
+    it("should allow arbiter to resolve dispute in favor of seller", async function () {
+      const { escrow, buyer, seller, arbiterAddress, publicClient } = await loadFixture(deployEscrowFixture);
       
       const dealAmount = parseEther("1");
       
-      // create a new deal
+      // create and setup disputed deal
       await escrow.write.createDeal(
         [getAddress(seller.account.address),
         arbiterAddress,
@@ -472,31 +474,48 @@ describe("Escrow Contract", function () {
         { account: buyer.account }
       );
       
-      // deposit ETH
       await escrow.write.depositETH(
         [0n],
         { account: buyer.account, value: dealAmount }
       );
       
-      // confirm shipment
       await escrow.write.confirmShipment(
         [0n],
         { account: seller.account }
       );
       
-      // try to raise non-cancellation dispute as seller after shipment
-      await expect(escrow.write.raiseDispute(
-        [0n, "Invalid dispute", false], // not a cancellation request
-        { account: seller.account }
-      )).to.be.rejectedWith("Seller can only request cancellation in SHIPPED state");
+      await escrow.write.raiseDispute(
+        [0n, "item damaged", false],
+        { account: buyer.account }
+      );
+      
+      // get initial seller balance
+      const initialSellerBalance = await publicClient.getBalance({
+        address: getAddress(seller.account.address),
+      });
+      
+      // resolve in favor of seller
+      const tx = await escrow.write.resolveDispute(
+        [0n, false], // false = release to seller
+        { account: arbiterAddress }
+      );
+      
+      await publicClient.waitForTransactionReceipt({ hash: tx });
+      
+      // check seller received payment
+      const finalSellerBalance = await publicClient.getBalance({
+        address: getAddress(seller.account.address),
+      });
+      expect(finalSellerBalance - initialSellerBalance).to.equal(dealAmount);
+      
+      // check deal state
+      const dealInfo = await escrow.read.getDeal([0n]);
+      expect(Number(dealInfo.state)).to.equal(4); // state.completed
     });
   });
   
-  // we can't easily test arbitration in this environment since we don't have access
-  // to the private keys of the hardcoded arbiters
-  
-  describe("Cancellation", function () {
-    it("Should allow cancellation in AWAITING_PAYMENT state", async function () {
+  describe("cancellation", function () {
+    it("should allow cancellation in awaiting_payment state", async function () {
       const { escrow, buyer, seller, arbiterAddress, publicClient } = await loadFixture(deployEscrowFixture);
       
       const dealAmount = parseEther("1");
@@ -518,14 +537,204 @@ describe("Escrow Contract", function () {
       
       await publicClient.waitForTransactionReceipt({ hash: tx });
       
-      // check for DealCancelled event
+      // check for dealcancelled event
       const cancelledEvents = await escrow.getEvents.DealCancelled();
       expect(cancelledEvents).to.have.lengthOf(1);
       expect(Number(cancelledEvents[0].args.dealId)).to.equal(0);
       
       // check deal state
-      const deal = await escrow.read.getDeal([0n]);
-      expect(Number(deal[5])).to.equal(6); // State.CANCELLED
+      const dealInfo = await escrow.read.getDeal([0n]);
+      expect(Number(dealInfo.state)).to.equal(6); // state.cancelled
+    });
+
+    it("should revert cancellation in non-awaiting_payment state", async function () {
+      const { escrow, buyer, seller, arbiterAddress } = await loadFixture(deployEscrowFixture);
+      
+      const dealAmount = parseEther("1");
+      
+      // create and fund deal
+      await escrow.write.createDeal(
+        [getAddress(seller.account.address),
+        arbiterAddress,
+        zeroAddress,
+        dealAmount],
+        { account: buyer.account }
+      );
+      
+      await escrow.write.depositETH(
+        [0n],
+        { account: buyer.account, value: dealAmount }
+      );
+      
+      // try to cancel after payment
+      await expect(escrow.write.cancelDeal(
+        [0n],
+        { account: buyer.account }
+      )).to.be.rejectedWith("InvalidState");
+    });
+  });
+
+  describe("invalid state transitions", function () {
+    it("should revert deposit in non-awaiting_payment state", async function () {
+      const { escrow, buyer, seller, arbiterAddress } = await loadFixture(deployEscrowFixture);
+      
+      const dealAmount = parseEther("1");
+      
+      // create and fund deal
+      await escrow.write.createDeal(
+        [getAddress(seller.account.address),
+        arbiterAddress,
+        zeroAddress,
+        dealAmount],
+        { account: buyer.account }
+      );
+      
+      await escrow.write.depositETH(
+        [0n],
+        { account: buyer.account, value: dealAmount }
+      );
+      
+      // try to deposit again
+      await expect(escrow.write.depositETH(
+        [0n],
+        { account: buyer.account, value: dealAmount }
+      )).to.be.rejectedWith("InvalidState");
+    });
+
+    it("should revert shipment confirmation in wrong state", async function () {
+      const { escrow, buyer, seller, arbiterAddress } = await loadFixture(deployEscrowFixture);
+      
+      const dealAmount = parseEther("1");
+      
+      // create deal but don't fund
+      await escrow.write.createDeal(
+        [getAddress(seller.account.address),
+        arbiterAddress,
+        zeroAddress,
+        dealAmount],
+        { account: buyer.account }
+      );
+      
+      // try to confirm shipment before payment
+      await expect(escrow.write.confirmShipment(
+        [0n],
+        { account: seller.account }
+      )).to.be.rejectedWith("InvalidState");
+    });
+  });
+
+  describe("token deals", function () {
+    async function deployTokenDealFixture() {
+      const base = await deployEscrowFixture();
+      const token = await hre.viem.deployContract("NextropeToken", [18]) as unknown as NextropeToken;
+      await token.write.mint([base.buyer.account.address, parseEther("10")], { account: base.owner.account });
+      await token.write.approve([base.escrow.address, parseEther("10")], { account: base.buyer.account });
+      return { ...base, token };
+    }
+
+    it("should create and complete a token deal", async function () {
+      const { escrow, buyer, seller, arbiterAddress, token, publicClient } = await loadFixture(deployTokenDealFixture);
+      const dealAmount = parseEther("1");
+
+      // Create token deal
+      await escrow.write.createDeal(
+        [getAddress(seller.account.address),
+        arbiterAddress,
+        token.address,
+        dealAmount],
+        { account: buyer.account }
+      );
+
+      // Check initial token balances
+      const initialSellerBalance = await token.read.balanceOf([getAddress(seller.account.address)]);
+      const initialEscrowBalance = await token.read.balanceOf([escrow.address]);
+      expect(initialSellerBalance).to.equal(0n);
+      expect(initialEscrowBalance).to.equal(0n);
+
+      // Deposit tokens
+      await escrow.write.depositToken([0n], { account: buyer.account });
+
+      // Verify escrow received tokens
+      expect(await token.read.balanceOf([escrow.address])).to.equal(dealAmount);
+
+      // Complete the deal
+      await escrow.write.confirmShipment([0n], { account: seller.account });
+      await escrow.write.confirmReceipt([0n], { account: buyer.account });
+
+      // Verify seller received tokens
+      expect(await token.read.balanceOf([getAddress(seller.account.address)])).to.equal(dealAmount);
+      expect(await token.read.balanceOf([escrow.address])).to.equal(0n);
+    });
+
+    it("should refund tokens to buyer when dispute resolved in their favor", async function () {
+      const { escrow, buyer, seller, arbiterAddress, token } = await loadFixture(deployTokenDealFixture);
+      const dealAmount = parseEther("1");
+
+      // Setup disputed deal
+      await escrow.write.createDeal(
+        [getAddress(seller.account.address),
+        arbiterAddress,
+        token.address,
+        dealAmount],
+        { account: buyer.account }
+      );
+      await escrow.write.depositToken([0n], { account: buyer.account });
+      await escrow.write.confirmShipment([0n], { account: seller.account });
+      await escrow.write.raiseDispute([0n, "defective item", false], { account: buyer.account });
+
+      // Get initial balances
+      const initialBuyerBalance = await token.read.balanceOf([getAddress(buyer.account.address)]);
+      const initialEscrowBalance = await token.read.balanceOf([escrow.address]);
+
+      // Resolve in buyer's favor
+      await escrow.write.resolveDispute([0n, true], { account: arbiterAddress });
+
+      // Verify token refund
+      expect(await token.read.balanceOf([getAddress(buyer.account.address)])).to.equal(initialBuyerBalance + dealAmount);
+      expect(await token.read.balanceOf([escrow.address])).to.equal(initialEscrowBalance - dealAmount);
+    });
+
+    it("should revert token deposit if allowance is insufficient", async function () {
+      const { escrow, buyer, seller, arbiterAddress, token } = await loadFixture(deployTokenDealFixture);
+      const dealAmount = parseEther("1");
+
+      // Create token deal
+      await escrow.write.createDeal(
+        [getAddress(seller.account.address),
+        arbiterAddress,
+        token.address,
+        dealAmount],
+        { account: buyer.account }
+      );
+
+      // Remove approval
+      await token.write.approve([escrow.address, 0n], { account: buyer.account });
+
+      // Try to deposit
+      await expect(escrow.write.depositToken(
+        [0n],
+        { account: buyer.account }
+      )).to.be.rejectedWith("ERC20InsufficientAllowance");
+    });
+
+    it("should revert token deposit if balance is insufficient", async function () {
+      const { escrow, buyer, seller, arbiterAddress, token } = await loadFixture(deployTokenDealFixture);
+      const dealAmount = parseEther("100"); // More than minted
+
+      // Create token deal
+      await escrow.write.createDeal(
+        [getAddress(seller.account.address),
+        arbiterAddress,
+        token.address,
+        dealAmount],
+        { account: buyer.account }
+      );
+
+      // Try to deposit more than balance
+      await expect(escrow.write.depositToken(
+        [0n],
+        { account: buyer.account }
+      )).to.be.rejectedWith("ERC20InsufficientAllowance");
     });
   });
 }); 

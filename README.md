@@ -55,7 +55,6 @@ Technical criteria:
 • Start-up documentation
 ```
 
-
 ## Project Structure
 
 This monorepo contains:
@@ -69,63 +68,52 @@ The diagram below shows the complete lifecycle of an escrow transaction:
 
 ```mermaid
 graph TD
-    Start([Start]) --> TrustedArbiters[Trusted Arbiters Added]
-    TrustedArbiters --> BuyerCreates[Buyer Creates Deal]
-    BuyerCreates --> |"Specifies seller, arbiter,\ntoken, amount"| DealCreated[Deal Created]
+    Start([Start]) --> ContractDeploy[Contract Deployment\nInitial Arbiters Setup]
+    ContractDeploy --> CreateDeal[Buyer Creates Deal\nSpecifies seller, arbiter, token, amount]
     
-    DealCreated --> |"State: AWAITING_PAYMENT"| PaymentChoice{Early Options}
+    CreateDeal --> |"AWAITING_PAYMENT"| PaymentOptions{Payment Options}
     
-    PaymentChoice -->|"Continue"| PaymentType{Payment Type}
-    PaymentChoice -->|"Cancel"| DirectCancel[Direct Cancellation\nEither party can cancel]
+    PaymentOptions -->|"Cancel"| EarlyCancel[Early Cancellation\nNo arbiter needed]
+    PaymentOptions -->|"ETH Payment"| DepositETH[Buyer Deposits ETH]
+    PaymentOptions -->|"Token Payment"| DepositToken[Buyer Deposits Tokens]
     
-    DirectCancel --> |"State: CANCELLED"| End([End])
+    DepositETH --> |"AWAITING_DELIVERY"| ShipmentPhase
+    DepositToken --> |"AWAITING_DELIVERY"| ShipmentPhase
     
-    PaymentType -->|ETH| BuyerDepositsETH[Buyer Deposits ETH]
-    PaymentType -->|ERC-20| BuyerDepositsToken[Buyer Deposits Token]
+    ShipmentPhase --> |"Ship"| ConfirmShipment[Seller Confirms Shipment]
+    ShipmentPhase --> |"Dispute"| RaiseDispute1[Either Party Raises Dispute]
     
-    BuyerDepositsETH --> PaymentComplete[Payment Complete]
-    BuyerDepositsToken --> PaymentComplete
+    ConfirmShipment --> |"SHIPPED"| DeliveryPhase
     
-    PaymentComplete --> |"State: AWAITING_DELIVERY"| DeliveryPhase{Delivery Phase}
+    DeliveryPhase --> |"Accept"| ConfirmReceipt[Buyer Confirms Receipt]
+    DeliveryPhase --> |"Dispute"| RaiseDispute2[Buyer Raises Dispute]
     
-    DeliveryPhase -->|"Ship"| SellerShips[Seller Confirms Shipment]
-    DeliveryPhase -->|"Dispute"| BuyerRaisesDispute1[Buyer Raises Dispute]
-    DeliveryPhase -->|"Dispute"| SellerRaisesDispute[Seller Raises Dispute]
+    RaiseDispute1 --> |"DISPUTED"| DisputeResolution
+    RaiseDispute2 --> |"DISPUTED"| DisputeResolution
     
-    SellerShips --> |"State: SHIPPED"| ShippedPhase{Shipped Phase}
-    BuyerRaisesDispute1 --> |"State: DISPUTED"| DisputeCreated[Dispute Created]
-    SellerRaisesDispute --> |"State: DISPUTED"| DisputeCreated
+    DisputeResolution --> ArbiterDecision{Arbiter Decision}
     
-    ShippedPhase -->|"Confirm"| BuyerConfirms[Buyer Confirms Receipt]
-    ShippedPhase -->|"Dispute"| BuyerRaisesDispute2[Buyer Raises Dispute]
-    ShippedPhase -->|"Cancel"| SellerRequestsCancel[Seller Requests Cancellation]
+    ArbiterDecision -->|"Favor Buyer"| RefundBuyer[Funds Refunded to Buyer]
+    ArbiterDecision -->|"Favor Seller"| PaySeller[Funds Released to Seller]
     
-    BuyerConfirms --> |"State: COMPLETED"| FundsReleased[Funds Released to Seller]
-    BuyerRaisesDispute2 --> |"State: DISPUTED"| DisputeCreated
-    SellerRequestsCancel --> |"State: DISPUTED"| DisputeCreated
+    ConfirmReceipt --> |"COMPLETED"| PaySeller
     
-    DisputeCreated --> ArbiterResolves[Arbiter Resolves Dispute]
-    
-    ArbiterResolves --> Resolution{Arbiter Decision}
-    Resolution -->|"Favor Seller"| FundsReleased
-    Resolution -->|"Favor Buyer"| FundsReturned[Funds Returned to Buyer]
-    
-    FundsReleased --> |"State: COMPLETED"| End
-    FundsReturned --> |"State: REFUNDED"| End
+    EarlyCancel --> |"CANCELLED"| End([End])
+    RefundBuyer --> |"REFUNDED"| End
+    PaySeller --> |"COMPLETED"| End
     
     classDef state fill:#e1f5e1,stroke:#333,stroke-width:1px;
     classDef action fill:#d1e7dd,stroke:#333,stroke-width:1px;
     classDef decision fill:#f9f9f9,stroke:#333,stroke-width:1px;
+    classDef final fill:#ffecb3,stroke:#333,stroke-width:1px;
     classDef dispute fill:#ffe6e6,stroke:#333,stroke-width:1px;
-    classDef cancel fill:#fff4e6,stroke:#333,stroke-width:1px;
     classDef terminal fill:#f8f9fa,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5;
     
-    class BuyerCreates,SellerShips,BuyerConfirms,ArbiterResolves,BuyerDepositsETH,BuyerDepositsToken action;
-    class DealCreated,PaymentComplete,FundsReleased,FundsReturned,DisputeCreated state;
-    class PaymentChoice,PaymentType,DeliveryPhase,ShippedPhase,Resolution decision;
+    class ContractDeploy,CreateDeal,DepositETH,DepositToken,ConfirmShipment,ConfirmReceipt action;
+    class PaymentOptions,DeliveryPhase,ArbiterDecision decision;
+    class RaiseDispute1,RaiseDispute2,DisputeResolution dispute;
+    class PaySeller,RefundBuyer,EarlyCancel final;
     class Start,End terminal;
-    class BuyerRaisesDispute1,BuyerRaisesDispute2,SellerRaisesDispute dispute;
-    class DirectCancel,SellerRequestsCancel cancel;
 ```
 
 ## Getting Started
