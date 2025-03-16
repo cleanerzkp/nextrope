@@ -3,7 +3,8 @@
 import { NavBar } from "@/components/nav-bar";
 import { useState, useEffect, useMemo } from "react";
 import { useAppKitAccount } from "@reown/appkit/react";
-import { useDeal, useConfirmShipment, useConfirmReceipt, useRaiseDispute, useResolveDispute, getEscrowStateName, useDepositETH, useDepositToken, useCancelDeal, ETH_ADDRESS } from "@/lib/hooks";
+import { useDeal, useConfirmShipment, useConfirmReceipt, useRaiseDispute, useResolveDispute, useDepositETH, useDepositToken, useCancelDeal, ETH_ADDRESS } from "@/lib/hooks";
+import { getEscrowStateName } from "@/lib/utils";
 import { AddressDisplay } from "@/components/address-display";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Loader2, AlertCircle, CheckCircle2, ShieldQuestion, ShieldAlert, Info, ShoppingBag, Truck, PackageCheck, Wallet, Ban, ExternalLink, Plus, Copy } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle2, ShieldQuestion, ShieldAlert, Info, ShoppingBag, Truck, PackageCheck, Wallet, Ban, ExternalLink, Plus, Copy, ShieldCheck } from "lucide-react";
 import Image from "next/image";
 import { knownTokens } from "@/lib/contracts";
 import { formatEther, formatUnits } from "viem";
@@ -222,14 +223,15 @@ export default function EscrowDetailsPage({ params }: { params: { id: string } }
     fetchData();
   }, [deal]);
   
-  // Dispute dialog state
+  // Dialog state
   const [disputeDialogOpen, setDisputeDialogOpen] = useState(false);
   const [disputeReason, setDisputeReason] = useState("");
-  const [requestRefund, setRequestRefund] = useState(true);
+  // Instead of using state for requestRefund, use a constant since it's always true
+  const requestRefund = true; // Always true, no need for state
   
   // Resolution dialog state
   const [resolveDialogOpen, setResolveDialogOpen] = useState(false);
-  const [refundBuyer, setRefundBuyer] = useState(false);
+  const [refundBuyer, setRefundBuyer] = useState(true);
   const [resolutionReason, setResolutionReason] = useState("");
   
   // Cancel dialog state
@@ -735,11 +737,11 @@ export default function EscrowDetailsPage({ params }: { params: { id: string } }
                   
                   <div className="flex items-center space-x-2">
                     <Checkbox 
-                      id="requestRefund" 
-                      checked={requestRefund}
-                      onCheckedChange={(checked) => setRequestRefund(checked as boolean)}
+                      id="requestRefund"
+                      checked={true}
+                      disabled={true}
                     />
-                    <Label htmlFor="requestRefund">Request cancellation of the escrow</Label>
+                    <Label htmlFor="requestRefund">Request a refund instead of continuing the transaction</Label>
                   </div>
                 </div>
                 
@@ -804,9 +806,9 @@ export default function EscrowDetailsPage({ params }: { params: { id: string } }
                   
                   <div className="flex items-center space-x-2">
                     <Checkbox 
-                      id="requestRefund" 
-                      checked={requestRefund}
-                      onCheckedChange={(checked) => setRequestRefund(checked as boolean)}
+                      id="requestRefund"
+                      checked={true}
+                      disabled={true}
                     />
                     <Label htmlFor="requestRefund">Request a refund instead of continuing the transaction</Label>
                   </div>
@@ -895,9 +897,9 @@ export default function EscrowDetailsPage({ params }: { params: { id: string } }
                     
                     <div className="flex items-center space-x-2">
                       <Checkbox 
-                        id="requestRefund" 
-                        checked={requestRefund}
-                        onCheckedChange={(checked) => setRequestRefund(checked as boolean)}
+                        id="requestRefund"
+                        checked={true}
+                        disabled={true}
                       />
                       <Label htmlFor="requestRefund">Request a refund</Label>
                     </div>
@@ -965,9 +967,8 @@ export default function EscrowDetailsPage({ params }: { params: { id: string } }
                   
                   <div className="flex items-center space-x-2">
                     <Checkbox 
-                      id="requestRefund" 
+                      id="requestRefund"
                       checked={true}
-                      onCheckedChange={() => {}}
                       disabled={true}
                     />
                     <Label htmlFor="requestRefund" className="text-muted-foreground">
@@ -1009,68 +1010,164 @@ export default function EscrowDetailsPage({ params }: { params: { id: string } }
     if (state === 3 && isArbiter) {
       return (
         <div className="mt-6 space-y-4">
-          <Dialog open={resolveDialogOpen} onOpenChange={setResolveDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="w-full">
-                <ShieldQuestion className="mr-2 h-4 w-4" />
-                Resolve Dispute
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Resolve Dispute</DialogTitle>
-                <DialogDescription>
-                  As the arbiter, you will decide whether to refund the buyer or release funds to the seller.
-                </DialogDescription>
-              </DialogHeader>
-              
-              <div className="space-y-4 py-4">
-                <div className="flex items-center space-x-2">
-                  <Checkbox 
-                    id="refundBuyer" 
-                    checked={refundBuyer}
-                    onCheckedChange={(checked) => setRefundBuyer(checked as boolean)}
-                  />
-                  <Label htmlFor="refundBuyer">
-                    Refund the buyer ({deal.buyer.slice(0, 6)}...{deal.buyer.slice(-4)})
-                  </Label>
+          <Card className="bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center text-red-700 dark:text-red-400">
+                <ShieldAlert className="mr-2 h-5 w-5" /> 
+                Dispute Resolution Required
+              </CardTitle>
+              <CardDescription className="text-red-600 dark:text-red-400">
+                As the designated arbiter, you need to review this dispute and make a fair decision.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium dark:text-foreground">Dispute Reason:</h3>
+                  <div className="p-3 bg-white dark:bg-background rounded-md border border-red-200 dark:border-red-900 text-sm">
+                    {deal.disputeReason || "No reason provided"}
+                  </div>
                 </div>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="resolutionReason">Reason for Decision</Label>
-                  <Textarea 
-                    id="resolutionReason" 
-                    placeholder="Explain your decision..."
-                    value={resolutionReason}
-                    onChange={(e) => setResolutionReason(e.target.value)}
-                    className="min-h-24"
-                  />
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-medium">Transaction Details:</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Amount:</span>
+                        <span className="font-medium">{formatAmount(deal.amount)} {getTokenSymbol()}</span>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-sm text-muted-foreground">Buyer:</span>
+                        <div className="flex items-center space-x-2">
+                          <AddressDisplay address={deal.buyer} size="sm" />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-sm text-muted-foreground">Seller:</span>
+                        <div className="flex items-center space-x-2">
+                          <AddressDisplay address={deal.seller} size="sm" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-medium">Guidelines for Arbitration:</h3>
+                    <ul className="space-y-1 text-sm text-muted-foreground list-disc list-inside">
+                      <li>Review all information carefully</li>
+                      <li>Consider both buyer and seller perspectives</li>
+                      <li>Make a fair decision based on available evidence</li>
+                      <li>Your decision is final and cannot be reversed</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
-              
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setResolveDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={handleResolveDispute}
-                  disabled={!resolutionReason || isResolvingDispute}
-                >
-                  {isResolvingDispute ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Resolving...
-                    </>
-                  ) : (
-                    "Resolve Dispute"
-                  )}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+            </CardContent>
+            <CardFooter className="pt-3 border-t border-red-200">
+              <Dialog open={resolveDialogOpen} onOpenChange={setResolveDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="w-full">
+                    <ShieldQuestion className="mr-2 h-4 w-4" />
+                    Resolve Dispute
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Resolve Dispute</DialogTitle>
+                    <DialogDescription>
+                      As the arbiter, you will decide whether to refund the buyer or release funds to the seller.
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  <div className="space-y-4 py-4">
+                    <div className="flex flex-col space-y-4">
+                      <div className="p-3 rounded-md bg-muted">
+                        <p className="text-sm font-medium mb-1">Dispute Reason:</p>
+                        <p className="text-sm">{deal.disputeReason || "No reason provided"}</p>
+                      </div>
+                      
+                      <div className="flex flex-col space-y-2">
+                        <Label className="text-base">Select Resolution:</Label>
+                        <div className="grid gap-2">
+                          <div className="flex items-start space-x-3">
+                            <Checkbox 
+                              id="refundBuyer" 
+                              checked={refundBuyer}
+                              onCheckedChange={(checked) => {
+                                setRefundBuyer(checked as boolean);
+                                if (checked) setResolutionReason("After reviewing the dispute, I've decided to refund the buyer due to...");
+                              }}
+                            />
+                            <div>
+                              <Label htmlFor="refundBuyer" className="text-base font-medium">
+                                Refund the buyer
+                              </Label>
+                              <p className="text-sm text-muted-foreground">
+                                The buyer will receive a full refund of {formatAmount(deal.amount)} {getTokenSymbol()}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-start space-x-3">
+                            <Checkbox 
+                              id="releaseToSeller" 
+                              checked={!refundBuyer}
+                              onCheckedChange={(checked) => {
+                                setRefundBuyer(!(checked as boolean));
+                                if (checked) setResolutionReason("After reviewing the dispute, I've decided to release funds to the seller because...");
+                              }}
+                            />
+                            <div>
+                              <Label htmlFor="releaseToSeller" className="text-base font-medium">
+                                Release funds to seller
+                              </Label>
+                              <p className="text-sm text-muted-foreground">
+                                The seller will receive the full payment of {formatAmount(deal.amount)} {getTokenSymbol()}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="resolutionReason">Reason for Decision</Label>
+                      <Textarea 
+                        id="resolutionReason" 
+                        placeholder="Explain your decision in detail..."
+                        value={resolutionReason}
+                        onChange={(e) => setResolutionReason(e.target.value)}
+                        className="min-h-24"
+                      />
+                    </div>
+                  </div>
+                  
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setResolveDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button 
+                      onClick={handleResolveDispute}
+                      disabled={!resolutionReason || isResolvingDispute}
+                    >
+                      {isResolvingDispute ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Resolving...
+                        </>
+                      ) : (
+                        "Submit Resolution"
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </CardFooter>
+          </Card>
           
           <p className="text-sm text-muted-foreground">
-            As the arbiter, you are responsible for resolving this dispute fairly.
+            Your decision as an arbiter is final and will be recorded on the blockchain. Please review all information carefully before resolving this dispute.
           </p>
         </div>
       );
@@ -1105,6 +1202,78 @@ export default function EscrowDetailsPage({ params }: { params: { id: string } }
   const getExplorerLink = (type: 'tx' | 'address', value: string) => {
     return getExplorerUrl(escrowContract.chainId, type, value);
   };
+  
+  // Helper function to format state indicators
+  const getStateIndicator = () => {
+    if (!deal) return (
+      <div className="flex items-center gap-1 text-gray-500">
+        <Info className="h-4 w-4" />
+        <span>Unknown State</span>
+      </div>
+    );
+    
+    switch (Number(deal.state)) {
+      case 0: // AWAITING_PAYMENT
+        return (
+          <div className="flex items-center gap-1 text-yellow-600">
+            <Wallet className="h-4 w-4" />
+            <span>Awaiting Payment</span>
+          </div>
+        );
+      case 1: // AWAITING_DELIVERY
+        return (
+          <div className="flex items-center gap-1 text-blue-600">
+            <ShoppingBag className="h-4 w-4" />
+            <span>Awaiting Delivery</span>
+          </div>
+        );
+      case 2: // SHIPPED
+        return (
+          <div className="flex items-center gap-1 text-green-600">
+            <Truck className="h-4 w-4" />
+            <span>Shipped</span>
+          </div>
+        );
+      case 3: // DISPUTED
+        return (
+          <div className="flex items-center gap-1 text-red-600">
+            <AlertCircle className="h-4 w-4" />
+            <span>Disputed</span>
+          </div>
+        );
+      case 4: // COMPLETED
+        return (
+          <div className="flex items-center gap-1 text-green-700">
+            <CheckCircle2 className="h-4 w-4" />
+            <span>Completed</span>
+          </div>
+        );
+      case 5: // REFUNDED
+        return (
+          <div className="flex items-center gap-1 text-purple-600">
+            <ShieldCheck className="h-4 w-4" />
+            <span>Refunded to Buyer</span>
+          </div>
+        );
+      case 6: // CANCELLED
+        return (
+          <div className="flex items-center gap-1 text-gray-600">
+            <Ban className="h-4 w-4" />
+            <span>Cancelled</span>
+          </div>
+        );
+      default:
+        return (
+          <div className="flex items-center gap-1 text-gray-500">
+            <Info className="h-4 w-4" />
+            <span>Unknown State</span>
+          </div>
+        );
+    }
+  };
+
+  // Show dispute information if there was a dispute
+  const showDisputeResolution = deal && deal.disputeReason && (Number(deal.state) === 4 || Number(deal.state) === 5);
   
   // If loading, show a loading state
   if (isLoading) {
@@ -1355,6 +1524,81 @@ export default function EscrowDetailsPage({ params }: { params: { id: string } }
               
               <Separator />
               
+              {/* Transaction Details */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Transaction Details</h3>
+                
+                <div className="space-y-4">
+                  <div className="p-3 border rounded-md">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Amount</p>
+                        <p className="font-medium">{formatAmount(deal.amount)} {getTokenSymbol()}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Status</p>
+                        {getStateIndicator()}
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Created</p>
+                        <p className="text-sm">{new Date(Number(deal.createdAt) * 1000).toLocaleString()}</p>
+                      </div>
+                      {getTransactionHash() && (
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Transaction Hash</p>
+                          <a 
+                            href={getExplorerLink('tx', getTransactionHash()!)}
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-sm text-primary hover:underline flex items-center gap-1"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            View on Explorer
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Dispute Resolution Information */}
+                  {showDisputeResolution && (
+                    <div className="p-4 border rounded-lg bg-muted/20">
+                      <h3 className="text-sm font-medium mb-2">Dispute Resolution Details</h3>
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Original Dispute</p>
+                          <p className="text-sm p-2 bg-red-50 border border-red-100 rounded-md">
+                            {deal.disputeReason}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Resolution Outcome</p>
+                          <p className="text-sm">
+                            {Number(deal.state) === 4 ? "Funds released to seller" : "Funds refunded to buyer"}
+                          </p>
+                        </div>
+                        {deal.resolutionReason && (
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1">Arbiter&apos;s Notes</p>
+                            <p className="text-sm p-2 bg-blue-50 border border-blue-100 rounded-md">
+                              {deal.resolutionReason}
+                            </p>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Resolved By</p>
+                          <AddressDisplay 
+                            address={deal.arbiter} 
+                            withCopy
+                            size="sm"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
               {/* Status Explanation */}
               <div className="p-4 border rounded-lg bg-muted/20">
                 <h3 className="text-sm font-medium mb-2">Current Status: {getEscrowStateName(Number(deal.state))}</h3>
@@ -1397,42 +1641,6 @@ export default function EscrowDetailsPage({ params }: { params: { id: string } }
               
               {/* Action Section */}
               {getActionSection()}
-              
-              {/* Display dispute reason if in dispute state */}
-              {Number(deal.state) === 4 && deal.disputeReason && (
-                <div className="p-4 border rounded-lg bg-red-50 mt-4">
-                  <h3 className="text-sm font-medium text-red-800 mb-2 flex items-center gap-2">
-                    <ShieldAlert className="h-4 w-4" />
-                    Dispute Information
-                  </h3>
-                  <p className="text-sm text-red-700">
-                    {deal.disputeReason}
-                  </p>
-                  <div className="mt-2">
-                    <Badge variant="outline" className="bg-red-100 text-red-800 border-red-200">
-                      {deal.buyerRequestingRefund ? "Buyer requested refund" : "No refund requested"}
-                    </Badge>
-                  </div>
-                </div>
-              )}
-              
-              {/* Display resolution reason if in resolved state */}
-              {Number(deal.state) === 5 && deal.resolutionReason && (
-                <div className="p-4 border rounded-lg bg-purple-50 mt-4">
-                  <h3 className="text-sm font-medium text-purple-800 mb-2 flex items-center gap-2">
-                    <ShieldQuestion className="h-4 w-4" />
-                    Resolution Information
-                  </h3>
-                  <p className="text-sm text-purple-700">
-                    {deal.resolutionReason}
-                  </p>
-                  <div className="mt-2">
-                    <Badge variant="outline" className="bg-purple-100 text-purple-800 border-purple-200">
-                      {deal.refundedBuyer ? "Buyer was refunded" : "Seller received payment"}
-                    </Badge>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
           

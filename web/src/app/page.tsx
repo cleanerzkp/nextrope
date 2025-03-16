@@ -3,7 +3,92 @@
 import { NavBar } from "@/components/nav-bar";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { ArrowRight, Shield, Globe, Clock, Users, CheckCircle } from "lucide-react";
+import { ArrowRight, Shield, Globe, Clock, Users, CheckCircle, AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useAppKitAccount } from "@reown/appkit/react";
+import { useEffect, useState } from "react";
+import { escrowContract } from "@/lib/contracts";
+import { usePublicClient } from "wagmi";
+import { useIsApprovedArbiter, useNextDealId } from "@/lib/hooks";
+import { EscrowCharts } from "@/components/escrow-charts";
+
+// Arbiter Alert Component
+function ArbiterAlert() {
+  const { isConnected, address } = useAppKitAccount();
+  const publicClient = usePublicClient({ chainId: escrowContract.chainId });
+  const { data: nextDealId } = useNextDealId();
+  const { data: isArbiter } = useIsApprovedArbiter(
+    address as `0x${string}` || '0x0000000000000000000000000000000000000000'
+  );
+  
+  const [pendingDisputes, setPendingDisputes] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  useEffect(() => {
+    const checkForDisputes = async () => {
+      if (!isConnected || !address || !isArbiter || !nextDealId || !publicClient) {
+        setIsLoading(false);
+        return;
+      }
+      
+      setIsLoading(true);
+      try {
+        const maxId = Number(nextDealId);
+        let disputeCount = 0;
+        
+        // Loop through all escrows to find disputes where the current user is the arbiter
+        for (let i = 0; i < maxId; i++) {
+          try {
+            const dealData = await publicClient.readContract({
+              address: escrowContract.address as `0x${string}`,
+              abi: escrowContract.abi,
+              functionName: 'getDeal',
+              args: [BigInt(i)],
+            });
+            
+            // Check if the current user is the arbiter and the escrow is in disputed state
+            if (
+              dealData && 
+              dealData[2].toLowerCase() === address.toLowerCase() && // arbiter
+              Number(dealData[5]) === 3 // DISPUTED state
+            ) {
+              disputeCount++;
+            }
+          } catch (error) {
+            console.error(`Error checking escrow ${i}:`, error);
+          }
+        }
+        
+        setPendingDisputes(disputeCount);
+      } catch (error) {
+        console.error("Error checking for disputes:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    checkForDisputes();
+  }, [isConnected, address, isArbiter, nextDealId, publicClient]);
+  
+  if (isLoading || !isConnected || !isArbiter || pendingDisputes === 0) {
+    return null;
+  }
+  
+  return (
+    <div className="container mx-auto max-w-6xl px-4 mt-4">
+      <Alert variant="destructive" className="bg-red-50 border-red-200">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Pending Disputes</AlertTitle>
+        <AlertDescription className="flex justify-between items-center">
+          <span>You have {pendingDisputes} {pendingDisputes === 1 ? 'dispute' : 'disputes'} waiting for your arbitration.</span>
+          <Button size="sm" asChild>
+            <Link href="/arbitrate">Review Disputes</Link>
+          </Button>
+        </AlertDescription>
+      </Alert>
+    </div>
+  );
+}
 
 export default function Home() {
   return (
@@ -11,6 +96,9 @@ export default function Home() {
       <NavBar />
       
       <main>
+        {/* Arbiter Alert */}
+        <ArbiterAlert />
+        
         {/* Hero Section */}
         <section className="py-20 px-4">
           <div className="container mx-auto max-w-6xl">
@@ -48,6 +136,9 @@ export default function Home() {
             </div>
           </div>
         </section>
+        
+        {/* Platform Statistics Charts */}
+        <EscrowCharts />
         
         {/* Features Section */}
         <section className="py-16 bg-muted/30">

@@ -127,10 +127,35 @@ export async function fetchTokenMetadata(tokenAddress: `0x${string}`): Promise<T
       console.error(`Error getting name for token ${tokenAddress}:`, error)
     }
     
+    // Try to get token logo from Alchemy if API key is available
+    let logo: string | undefined = undefined
+    
+    // Check if we have a known logo for this symbol
+    if (symbol && KNOWN_TOKEN_LOGOS[symbol.toUpperCase()]) {
+      logo = KNOWN_TOKEN_LOGOS[symbol.toUpperCase()]
+    } else {
+      // Try to fetch from Alchemy token API if we have an API key
+      const alchemyApiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY
+      if (alchemyApiKey) {
+        try {
+          const response = await fetch(
+            `https://eth-sepolia.g.alchemy.com/v2/${alchemyApiKey}/getTokenMetadata?contractAddress=${tokenAddress}`
+          )
+          const data = await response.json()
+          if (data && data.metadata && data.metadata.logo) {
+            logo = data.metadata.logo
+          }
+        } catch (logoError) {
+          console.error(`Error fetching logo for token ${tokenAddress}:`, logoError)
+        }
+      }
+    }
+    
     return {
       name,
       symbol,
-      decimals
+      decimals,
+      logo
     }
   } catch (error) {
     console.error(`Error fetching metadata for token ${tokenAddress}:`, error)
@@ -166,4 +191,48 @@ function getPublicClientForChain(): PublicClient {
 export function getExplorerUrl(chainId: number, type: 'tx' | 'address' | 'token', value: string): string {
   // Only support Sepolia since that's the only network we use
   return `https://sepolia.etherscan.io/${type}/${value}`;
+}
+
+// Get state name from numeric state 
+export function getEscrowStateName(state: number): string {
+  switch (state) {
+    case 0: return "Awaiting Payment";
+    case 1: return "Awaiting Delivery";
+    case 2: return "Shipped";
+    case 3: return "Disputed";
+    case 4: return "Completed";
+    case 5: return "Refunded";
+    case 6: return "Cancelled";
+    default: return "Unknown";
+  }
+}
+
+// Chart utilities
+export function createVarStyles(config: Record<string, { color: string | { light: string; dark: string } }>) {
+  const style: Record<string, string> = {}
+
+  for (const [key, value] of Object.entries(config)) {
+    if (typeof value.color === "string") {
+      style[`--color-${key}`] = value.color
+    } else if (typeof value.color === "object") {
+      // Handle light/dark mode colors (CSS Variables)
+      style[`--color-${key}`] = `var(--color-${key}-light, ${value.color.light})`
+      style[`--color-${key}-light`] = value.color.light
+      style[`--color-${key}-dark`] = value.color.dark
+    }
+  }
+
+  return style
+}
+
+export function createShapeStyles(names: string[]) {
+  const style: Record<string, { background: string }> = {}
+
+  for (const name of names) {
+    style[name] = {
+      background: `var(--color-${name})`,
+    }
+  }
+
+  return style
 }

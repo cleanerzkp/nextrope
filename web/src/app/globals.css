@@ -77,6 +77,22 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  
+  /* Chart Colors */
+  --chart-1: 12 76% 61%;
+  --chart-2: 173 58% 39%;
+  --chart-3: 197 37% 24%;
+  --chart-4: 43 74% 66%;
+  --chart-5: 27 87% 67%;
+  
+  /* Escrow State Colors */
+  --color-state-0: #FFC107; /* Awaiting Payment - Yellow */
+  --color-state-1: #2196F3; /* Awaiting Delivery - Blue */
+  --color-state-2: #4CAF50; /* Shipped - Green */
+  --color-state-3: #F44336; /* Disputed - Red */
+  --color-state-4: #00897B; /* Completed - Teal */
+  --color-state-5: #9C27B0; /* Refunded - Purple */
+  --color-state-6: #757575; /* Cancelled - Gray */
 }
 
 .dark {
@@ -111,6 +127,22 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  
+  /* Chart Colors for Dark Mode */
+  --chart-1: 220 70% 50%;
+  --chart-2: 160 60% 45%;
+  --chart-3: 30 80% 55%;
+  --chart-4: 280 65% 60%;
+  --chart-5: 340 75% 55%;
+  
+  /* Escrow State Colors - slightly adjusted for dark mode */
+  --color-state-0: #FFCA28; /* Awaiting Payment - Yellow (brighter) */
+  --color-state-1: #42A5F5; /* Awaiting Delivery - Blue (brighter) */
+  --color-state-2: #66BB6A; /* Shipped - Green (brighter) */
+  --color-state-3: #EF5350; /* Disputed - Red (brighter) */
+  --color-state-4: #26A69A; /* Completed - Teal (brighter) */
+  --color-state-5: #AB47BC; /* Refunded - Purple (brighter) */
+  --color-state-6: #9E9E9E; /* Cancelled - Gray (brighter) */
 }
 
 @layer base {

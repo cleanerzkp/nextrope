@@ -3,6 +3,8 @@ import { escrowContract, knownArbiters, knownTokens } from './contracts'
 import { parseEther, parseUnits } from 'viem'
 import { atom, useAtom } from 'jotai'
 import { toast } from 'sonner'
+import { useState, useEffect } from 'react'
+import { getEscrowStateName, fetchTokenMetadata, KNOWN_TOKEN_LOGOS, TokenMetadata } from './utils'
 
 // Define the zero address for ETH
 export const ETH_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -33,6 +35,9 @@ const erc20Abi = [
 
 // Store transaction hashes for escrows
 export const escrowTxHashesAtom = atom<Record<string, string>>({});
+
+// Token metadata cache atom
+export const tokenMetadataCacheAtom = atom<Record<string, TokenMetadata>>({});
 
 // Hook to get a list of arbiters
 export function useArbiters() {
@@ -648,28 +653,225 @@ export function useCancelDeal() {
   }
 }
 
-/**
- * Returns a human-readable name for the escrow state
- * @param state The numeric state from the contract
- * @returns A string representation of the state
- */
-export function getEscrowStateName(state: number): string {
-  switch (state) {
-    case 0:
-      return "Awaiting Payment"; // AWAITING_PAYMENT
-    case 1:
-      return "Awaiting Delivery"; // AWAITING_DELIVERY
-    case 2:
-      return "Shipped"; // SHIPPED
-    case 3:
-      return "Disputed"; // DISPUTED
-    case 4:
-      return "Completed"; // COMPLETED
-    case 5:
-      return "Refunded"; // REFUNDED
-    case 6:
-      return "Cancelled"; // CANCELLED
-    default:
-      return "Unknown";
-  }
+// Hook to get enhanced token data for display
+export function useTokenInfo(tokenAddress: string | null | undefined) {
+  const [metadataCache, setMetadataCache] = useAtom(tokenMetadataCacheAtom);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  // Normalize the token address
+  const normalizedAddress = tokenAddress === ETH_ADDRESS || tokenAddress === 'ETH' || !tokenAddress
+    ? 'ETH' 
+    : tokenAddress.toLowerCase();
+  
+  // Initial simple metadata for ETH
+  useEffect(() => {
+    if (normalizedAddress === 'ETH' && !metadataCache['ETH']) {
+      setMetadataCache(current => ({
+        ...current,
+        'ETH': {
+          name: 'Ether',
+          symbol: 'ETH',
+          decimals: 18,
+          logo: 'https://tokens.1inch.io/0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.png' // Common ETH logo
+        }
+      }));
+    }
+  }, [normalizedAddress, metadataCache, setMetadataCache]);
+
+  // Fetch token metadata if not in cache
+  useEffect(() => {
+    const fetchData = async () => {
+      if (normalizedAddress === 'ETH' || metadataCache[normalizedAddress] || !tokenAddress || tokenAddress === ETH_ADDRESS) {
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const metadata = await fetchTokenMetadata(tokenAddress as `0x${string}`);
+        if (metadata) {
+          setMetadataCache(current => ({
+            ...current,
+            [normalizedAddress]: metadata
+          }));
+        }
+      } catch (err) {
+        console.error('Error fetching token metadata:', err);
+        setError(err as Error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [normalizedAddress, tokenAddress, metadataCache, setMetadataCache]);
+
+  // Return token info with fallbacks
+  const tokenInfo = normalizedAddress && metadataCache[normalizedAddress]
+    ? metadataCache[normalizedAddress]
+    : {
+        name: normalizedAddress === 'ETH' ? 'Ether' : `Unknown (${tokenAddress?.substring(0, 6)}...)`,
+        symbol: normalizedAddress === 'ETH' ? 'ETH' : '???',
+        decimals: 18,
+        logo: undefined
+      };
+
+  return {
+    tokenInfo,
+    isLoading,
+    error
+  };
+}
+
+// Hook to get escrow statistics for charts
+export function useEscrowStats() {
+  const { data: nextDealId } = useNextDealId();
+  const publicClient = usePublicClient({ chainId: escrowContract.chainId });
+  const [metadataCache, setMetadataCache] = useAtom(tokenMetadataCacheAtom);
+  
+  // Define the return type explicitly
+  type EscrowStats = {
+    stateDistribution: { name: string; value: number; state: number }[];
+    tokenDistribution: { token: string; displayName: string; value: number; logo?: string }[];
+    totalEscrows: number;
+    byToken: Record<string, number>;
+    byState: Record<number, number>;
+    isLoading: boolean;
+    error: Error | null;
+  };
+  
+  const [stats, setStats] = useState<EscrowStats>({
+    stateDistribution: [],
+    tokenDistribution: [],
+    totalEscrows: 0,
+    byToken: {},
+    byState: {},
+    isLoading: true,
+    error: null
+  });
+
+  useEffect(() => {
+    const fetchEscrowStats = async () => {
+      if (!nextDealId || !publicClient) {
+        return;
+      }
+
+      try {
+        const maxId = Number(nextDealId);
+        const stateCount: Record<number, number> = {
+          0: 0, // AWAITING_PAYMENT
+          1: 0, // AWAITING_DELIVERY
+          2: 0, // SHIPPED
+          3: 0, // DISPUTED
+          4: 0, // COMPLETED 
+          5: 0, // REFUNDED
+          6: 0  // CANCELLED
+        };
+        const tokenCount: Record<string, number> = {};
+        
+        // Load all escrows to gather statistics
+        for (let i = 0; i < maxId; i++) {
+          try {
+            const dealData = await publicClient.readContract({
+              address: escrowContract.address as `0x${string}`,
+              abi: escrowContract.abi,
+              functionName: 'getDeal',
+              args: [BigInt(i)],
+            });
+            
+            if (dealData) {
+              const state = Number(dealData[5]);
+              const token = dealData[3] as `0x${string}`;
+              
+              // Increment state count
+              stateCount[state] = (stateCount[state] || 0) + 1;
+              
+              // Increment token count
+              const tokenKey = token === ETH_ADDRESS ? 'ETH' : token;
+              tokenCount[tokenKey] = (tokenCount[tokenKey] || 0) + 1;
+              
+              // If token not in metadata cache and not ETH, fetch it
+              const normalizedKey = tokenKey.toLowerCase();
+              if (tokenKey !== 'ETH' && !metadataCache[normalizedKey]) {
+                try {
+                  const metadata = await fetchTokenMetadata(token);
+                  if (metadata) {
+                    setMetadataCache(current => ({
+                      ...current,
+                      [normalizedKey]: metadata
+                    }));
+                  }
+                } catch (err) {
+                  console.error(`Error fetching metadata for token ${token}:`, err);
+                }
+              }
+            }
+          } catch (error) {
+            console.error(`Error loading escrow ${i}:`, error);
+          }
+        }
+        
+        // Create data for pie charts
+        const stateDistribution = Object.entries(stateCount).map(([state, count]) => ({
+          name: getEscrowStateName(Number(state)),
+          value: count,
+          state: Number(state)
+        }));
+        
+        // Create token distribution with enhanced metadata
+        const tokenDistribution = Object.entries(tokenCount).map(([token, count]) => {
+          const normalizedToken = token.toLowerCase();
+          const metadata = token === 'ETH' 
+            ? { symbol: 'ETH', name: 'Ether', logo: 'https://tokens.1inch.io/0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.png' } 
+            : metadataCache[normalizedToken];
+          
+          let displayName = token;
+          let logo = undefined;
+          
+          if (token === 'ETH') {
+            displayName = 'ETH (Native)';
+            logo = 'https://tokens.1inch.io/0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee.png';
+          } else if (metadata) {
+            displayName = metadata.symbol || token.substring(0, 6) + '...';
+            logo = metadata.logo;
+          } else {
+            // For unknown tokens, use a shortened address
+            displayName = token.substring(0, 6) + '...' + token.substring(token.length - 4);
+          }
+          
+          return {
+            token,
+            displayName,
+            value: count,
+            logo
+          };
+        });
+        
+        setStats({
+          stateDistribution,
+          tokenDistribution,
+          totalEscrows: maxId,
+          byToken: tokenCount,
+          byState: stateCount,
+          isLoading: false,
+          error: null
+        });
+      } catch (error) {
+        console.error("Error fetching escrow stats:", error);
+        setStats(prev => ({
+          ...prev,
+          isLoading: false,
+          error: error as Error
+        }));
+      }
+    };
+    
+    if (nextDealId && publicClient) {
+      fetchEscrowStats();
+    }
+  }, [nextDealId, publicClient, metadataCache, setMetadataCache]);
+  
+  return stats;
 } 

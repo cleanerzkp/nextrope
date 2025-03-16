@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, PlusCircle, ShoppingBag, ExternalLink } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAppKitAccount } from "@reown/appkit/react";
-import { useNextDealId, getEscrowStateName } from "@/lib/hooks";
+import { useNextDealId } from "@/lib/hooks";
 import Link from "next/link";
 import { AddressDisplay } from "@/components/address-display";
 import { knownTokens, escrowContract } from "@/lib/contracts";
@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { readContracts } from "@wagmi/core";
 import { erc20Abi } from 'viem';
 import { sepolia } from 'viem/chains';
+import { getEscrowStateName } from "@/lib/utils";
 
 // Define a type for escrow data
 interface EscrowData {
@@ -502,10 +503,10 @@ export default function EscrowsPage() {
             <div className="flex flex-col items-center gap-4">
               <Loader2 className="h-10 w-10 animate-spin text-primary" />
               <p className="text-lg font-medium">Loading escrows...</p>
-            </div>
+        </div>
           </div>
         </main>
-      </div>
+        </div>
     );
   }
   
@@ -526,7 +527,7 @@ export default function EscrowsPage() {
             <Button>
               <PlusCircle className="mr-2 h-4 w-4" />
               Create New Escrow
-            </Button>
+          </Button>
           </Link>
         </div>
         
@@ -561,8 +562,8 @@ export default function EscrowsPage() {
                   <TabsTrigger value="arbiter" className="px-4">
                     As Arbiter
                   </TabsTrigger>
-                </TabsList>
-                
+            </TabsList>
+            
                 <TabsContent value="all" className="mt-0">
                   {/* Content is rendered below */}
                 </TabsContent>
@@ -574,15 +575,15 @@ export default function EscrowsPage() {
                 </TabsContent>
                 <TabsContent value="arbiter" className="mt-0">
                   {/* Content is rendered below */}
-                </TabsContent>
+            </TabsContent>
               </Tabs>
             </div>
             
             {filteredEscrows.length === 0 ? (
               <Card className="border-dashed border-2">
                 <CardHeader className="text-center">
-                  <CardTitle>No Escrows Found</CardTitle>
-                  <CardDescription>
+                    <CardTitle>No Escrows Found</CardTitle>
+                    <CardDescription>
                     {activeTab === "all" ? (
                       "You haven't created any escrows yet"
                     ) : activeTab === "buyer" ? (
@@ -592,8 +593,8 @@ export default function EscrowsPage() {
                     ) : (
                       "You aren't an arbiter in any escrows yet"
                     )}
-                  </CardDescription>
-                </CardHeader>
+                    </CardDescription>
+                  </CardHeader>
                 <CardContent className="flex flex-col items-center justify-center p-6">
                   <ShoppingBag className="h-12 w-12 text-muted-foreground mb-4" />
                   <p className="text-muted-foreground mb-4 text-center max-w-md">
@@ -612,7 +613,7 @@ export default function EscrowsPage() {
                     </Link>
                   )}
                 </CardContent>
-              </Card>
+                </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredEscrows.map((escrow) => {
@@ -707,15 +708,15 @@ export default function EscrowsPage() {
                             </Button>
                           </div>
                         </CardFooter>
-                      </Card>
+                </Card>
                     </div>
                   );
                 })}
               </div>
-            )}
+              )}
           </>
         )}
       </main>
     </div>
   );
-}
+} 
