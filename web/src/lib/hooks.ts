@@ -2,6 +2,7 @@ import { useReadContract, useWriteContract, useSwitchChain, useAccount, usePubli
 import { escrowContract, knownArbiters, knownTokens } from './contracts'
 import { parseEther, parseUnits } from 'viem'
 import { atom, useAtom } from 'jotai'
+import { toast } from 'sonner'
 
 // Define the zero address for ETH
 export const ETH_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -167,6 +168,30 @@ export function useCreateDeal() {
           abi: erc20Abi
         };
         
+        // Get token symbol for better UX messages
+        let tokenSymbol = selectedToken?.symbol || "tokens";
+        try {
+          if (!selectedToken?.symbol) {
+            // Use a separate contract call for symbol to avoid type issues
+            const symbol = await publicClient.readContract({
+              address: tokenAddress as `0x${string}`,
+              abi: [{ 
+                name: 'symbol', 
+                type: 'function', 
+                stateMutability: 'view',
+                inputs: [], 
+                outputs: [{ type: 'string', name: '' }] 
+              }],
+              functionName: 'symbol',
+            });
+            if (typeof symbol === 'string') {
+              tokenSymbol = symbol;
+            }
+          }
+        } catch (error) {
+          console.warn("Could not fetch token symbol:", error);
+        }
+        
         // Check allowance first
         console.log("Checking current token allowance");
         const allowance = await publicClient.readContract({
@@ -180,6 +205,12 @@ export function useCreateDeal() {
         // If allowance is not enough, approve first
         if (BigInt(allowance) < tokenAmount) {
           console.log("Insufficient allowance, requesting approval");
+          
+          // Show toast to inform user about the approval step
+          toast.loading(`Approving ${amount} ${tokenSymbol} for escrow. Please confirm in your wallet...`, {
+            id: "token-approval"
+          });
+          
           const approveTx = await writeContractAsync({
             ...tokenContract,
             functionName: 'approve',
@@ -189,10 +220,20 @@ export function useCreateDeal() {
           // Wait for approval to complete before proceeding
           console.log(`Approval transaction submitted: ${approveTx}`);
           console.log("Waiting for approval confirmation...");
+          
+          toast.loading(`Waiting for approval confirmation...`, {
+            id: "token-approval"
+          });
+          
           await publicClient.waitForTransactionReceipt({ hash: approveTx });
           console.log("Token approval confirmed!");
+          
+          toast.success(`Successfully approved ${amount} ${tokenSymbol} for escrow!`, {
+            id: "token-approval"
+          });
         } else {
           console.log("Sufficient allowance exists, proceeding with deal creation");
+          toast.success(`You've already approved ${tokenSymbol} for escrow. Proceeding with creation...`);
         }
       } else {
         console.log(isEth ? "Processing ETH escrow" : "Processing token escrow without immediate deposit");
@@ -200,6 +241,10 @@ export function useCreateDeal() {
       
       // Now create the deal (for both ETH and tokens)
       console.log("Creating escrow deal");
+      toast.loading("Creating escrow agreement. Please confirm in your wallet...", {
+        id: "create-escrow"
+      });
+      
       const tx = await writeContractAsync({
         address: escrowContract.address as `0x${string}`,
         abi: escrowContract.abi,
@@ -215,8 +260,17 @@ export function useCreateDeal() {
       // Wait for the transaction receipt to determine the deal ID
       console.log(`Deal creation transaction submitted: ${tx}`);
       console.log("Waiting for confirmation...");
+      
+      toast.loading("Waiting for escrow creation confirmation...", {
+        id: "create-escrow"
+      });
+      
       await publicClient.waitForTransactionReceipt({ hash: tx });
       console.log("Deal creation confirmed!");
+      
+      toast.success("Escrow agreement created successfully!", {
+        id: "create-escrow"
+      });
       
       // Get the next deal ID and subtract 1 to get the ID of the deal we just created
       console.log("Retrieving created deal ID");
@@ -231,9 +285,15 @@ export function useCreateDeal() {
       
       // If depositFunds is true, also deposit the funds
       if (depositFunds) {
+        const tokenSymbol = isEth ? "ETH" : (selectedToken?.symbol || "tokens");
+        
         if (isEth) {
           // For ETH, we need to call depositETH and send the ETH value with that call
           console.log(`Now depositing ${amount} ETH to escrow ID ${createdDealId}`);
+          
+          toast.loading(`Depositing ${amount} ETH to escrow. Please confirm in your wallet...`, {
+            id: "deposit-funds"
+          });
           
           const depositTx = await writeContractAsync({
             address: escrowContract.address as `0x${string}`,
@@ -245,13 +305,26 @@ export function useCreateDeal() {
           
           console.log(`ETH deposit transaction submitted: ${depositTx}`);
           console.log("Waiting for ETH deposit confirmation...");
+          
+          toast.loading("Waiting for deposit confirmation...", {
+            id: "deposit-funds"
+          });
+          
           await publicClient.waitForTransactionReceipt({ hash: depositTx });
           console.log("ETH deposit confirmed! Escrow fully funded.");
+          
+          toast.success(`Successfully deposited ${amount} ETH to escrow #${createdDealId}!`, {
+            id: "deposit-funds"
+          });
           
           return depositTx;
         } else {
           // For tokens, call depositToken to complete the setup
           console.log(`Now depositing ${amount} ${selectedToken.symbol} to escrow ID ${createdDealId}`);
+          
+          toast.loading(`Depositing ${amount} ${tokenSymbol} to escrow. Please confirm in your wallet...`, {
+            id: "deposit-funds"
+          });
           
           const depositTx = await writeContractAsync({
             address: escrowContract.address as `0x${string}`,
@@ -262,8 +335,17 @@ export function useCreateDeal() {
           
           console.log(`Token deposit transaction submitted: ${depositTx}`);
           console.log("Waiting for token deposit confirmation...");
+          
+          toast.loading("Waiting for deposit confirmation...", {
+            id: "deposit-funds"
+          });
+          
           await publicClient.waitForTransactionReceipt({ hash: depositTx });
           console.log("Token deposit confirmed! Escrow fully funded.");
+          
+          toast.success(`Successfully deposited ${amount} ${tokenSymbol} to escrow #${createdDealId}!`, {
+            id: "deposit-funds"
+          });
           
           return depositTx;
         }

@@ -13,9 +13,15 @@ import { AddressDisplay } from "@/components/address-display";
 import { knownTokens, escrowContract } from "@/lib/contracts";
 import { formatEther, formatUnits } from "viem";
 import Image from "next/image";
-import { usePublicClient } from "wagmi";
+import { usePublicClient, createConfig, http } from "wagmi";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { getExplorerUrl } from "@/lib/utils";
+import { useRouter } from "next/navigation";
+import type { TokenMetadata } from "@/lib/utils";
+import { toast } from "sonner";
+import { readContracts } from "@wagmi/core";
+import { erc20Abi } from 'viem';
+import { sepolia } from 'viem/chains';
 
 // Define a type for escrow data
 interface EscrowData {
@@ -34,58 +40,277 @@ interface Escrow {
   data: EscrowData;
 }
 
+// ERC20 Token ABI for reading token information
+const tokenAbi = [
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "decimals",
+    "outputs": [{ "name": "", "type": "uint8" }],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "symbol",
+    "outputs": [{ "name": "", "type": "string" }],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "name",
+    "outputs": [{ "name": "", "type": "string" }],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  }
+] as const;
+
 export default function EscrowsPage() {
   const { isConnected, address } = useAppKitAccount();
   const { data: nextDealId, isLoading: isLoadingNextDealId } = useNextDealId();
   const publicClient = usePublicClient({ chainId: escrowContract.chainId });
+  const router = useRouter();
   
   // State for loaded escrows
   const [escrows, setEscrows] = useState<Escrow[]>([]);
   const [isLoadingEscrows, setIsLoadingEscrows] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
   
+  // Add token metadata cache to the component state
+  const [tokenMetadataCache, setTokenMetadataCache] = useState<Record<string, TokenMetadata>>({});
+  
+  // Add formatted amounts cache
+  const [formattedAmounts, setFormattedAmounts] = useState<Record<string, string>>({});
+  
   // Helper to format amount with proper decimals
-  const formatAmount = (amount: bigint, tokenAddress?: `0x${string}`) => {
+  const formatAmount = async (amount: bigint, tokenAddress?: `0x${string}`) => {
     if (!tokenAddress) {
       return formatEther(amount);
     }
     
+    // First check if it's a known token
     const token = knownTokens.find(t => t.address.toLowerCase() === tokenAddress.toLowerCase());
-    if (!token) {
-      // Check for common token addresses even if not in knownTokens
-      // This prevents the default ETH fallback for known tokens
-      console.log(`Token not found in knownTokens: ${tokenAddress}`);
-      return formatUnits(amount, 18); // Default to 18 decimals if token not found
+    if (token) {
+      return formatUnits(amount, token.decimals);
     }
     
-    return formatUnits(amount, token.decimals);
+    // If not in known tokens, check the local cache of token metadata
+    if (tokenMetadataCache[tokenAddress.toLowerCase()]) {
+      const cachedToken = tokenMetadataCache[tokenAddress.toLowerCase()];
+      return formatUnits(amount, cachedToken.decimals || 18);
+    }
+    
+    // If we have a public client, try to fetch the decimals from the token contract
+    if (publicClient) {
+      try {
+        // Get token decimals
+        let decimals;
+        try {
+          decimals = await publicClient.readContract({
+            address: tokenAddress,
+            abi: tokenAbi,
+            functionName: 'decimals',
+          });
+        } catch (error) {
+          console.log("Error fetching token decimals:", error);
+          decimals = 18;
+        }
+        
+        // Try to get token symbol as well
+        let symbol;
+        try {
+          symbol = await publicClient.readContract({
+            address: tokenAddress,
+            abi: tokenAbi,
+            functionName: 'symbol',
+          });
+        } catch (error) {
+          console.log("Error fetching token symbol:", error);
+          symbol = tokenAddress.slice(0, 6);
+        }
+        
+        // Update the token metadata cache
+        setTokenMetadataCache(prev => ({
+          ...prev,
+          [tokenAddress.toLowerCase()]: {
+            name: '',
+            symbol: symbol as string || tokenAddress.slice(0, 6),
+            decimals: decimals as number
+          }
+        }));
+        
+        return formatUnits(amount, decimals as number);
+      } catch (error) {
+        console.error("Error fetching token decimals:", error);
+      }
+    }
+    
+    // Default to 18 decimals if all else fails
+    console.log(`Unable to determine decimals for token ${tokenAddress}, using 18 as fallback`);
+    return formatUnits(amount, 18);
+  };
+  
+  // Synchronous version that uses cached values
+  const getFormattedAmount = (id: number, amount: bigint, tokenAddress?: `0x${string}`) => {
+    const cacheKey = `${id}-${tokenAddress || 'eth'}-${amount.toString()}`;
+    
+    // Return from cache if available
+    if (formattedAmounts[cacheKey]) {
+      return formattedAmounts[cacheKey];
+    }
+    
+    // Get a reasonable default format
+    let defaultFormatted;
+    if (tokenAddress) {
+      // Try to use known token info first
+      const token = knownTokens.find(t => 
+        t.address.toLowerCase() === tokenAddress.toLowerCase()
+      );
+      
+      if (token) {
+        defaultFormatted = formatUnits(amount, token.decimals);
+      } else if (tokenMetadataCache[tokenAddress.toLowerCase()]) {
+        // Use cached metadata if available
+        const meta = tokenMetadataCache[tokenAddress.toLowerCase()];
+        defaultFormatted = formatUnits(amount, meta.decimals || 18);
+      } else {
+        // Default to 18 decimals for unknown tokens
+        defaultFormatted = formatUnits(amount, 18);
+      }
+    } else {
+      // ETH format
+      defaultFormatted = formatEther(amount);
+    }
+    
+    // Update async in background
+    formatAmount(amount, tokenAddress).then(formatted => {
+      // Only update if different from default
+      if (formatted !== defaultFormatted) {
+        console.log(`Updated format for ${tokenAddress || 'ETH'}: ${formatted}`);
+        setFormattedAmounts(prev => ({
+          ...prev,
+          [cacheKey]: formatted
+        }));
+      }
+    });
+    
+    return defaultFormatted;
   };
   
   // Helper to get token symbol by address
   const getTokenSymbol = (tokenAddress?: `0x${string}`) => {
     if (!tokenAddress) return 'ETH';
     
+    // First check if it's a known token
     const token = knownTokens.find(t => t.address.toLowerCase() === tokenAddress.toLowerCase());
     if (token) return token.symbol;
     
-    // Handle common tokens not in knownTokens list
-    // You can add more token addresses as needed
-    const commonTokens: Record<string, string> = {
-      '0xaD6D458402F60fD3Bd25163575031ACDce07538D': 'DAI', // Ropsten DAI
-      '0xc778417E063141139Fce010982780140Aa0cD5Ab': 'WETH', // Ropsten WETH
-      '0x07865c6E87B9F70255377e024ace6630C1Eaa37F': 'USDC', // Goerli USDC
-      '0xD9BA894E0097f8cC2BBc9D24D308b98e36dc6D02': 'USDT', // Sepolia USDT
-    };
-    
-    const lowerCaseAddress = tokenAddress.toLowerCase();
-    for (const [addr, symbol] of Object.entries(commonTokens)) {
-      if (addr.toLowerCase() === lowerCaseAddress) {
-        return symbol;
-      }
+    // If not in known tokens, check the local cache
+    if (tokenMetadataCache[tokenAddress.toLowerCase()]) {
+      return tokenMetadataCache[tokenAddress.toLowerCase()].symbol;
     }
     
-    // If still not found, return token address format
-    return `${tokenAddress.slice(0, 6)}...`;
+    // If we get here, we need to fetch the token data
+    // Start the fetch in background if we have a public client
+    if (publicClient) {
+      // Define an async function
+      const fetchTokenData = async () => {
+        try {
+          // Create a minimal config for Sepolia
+          const config = createConfig({
+            chains: [sepolia],
+            transports: {
+              [sepolia.id]: http(),
+            },
+          });
+
+          // Use readContracts to fetch token data (recommended approach in wagmi v2)
+          const results = await readContracts(config, {
+            contracts: [
+              {
+                address: tokenAddress,
+                abi: erc20Abi,
+                functionName: 'symbol',
+                chainId: sepolia.id
+              },
+              {
+                address: tokenAddress,
+                abi: erc20Abi,
+                functionName: 'decimals',
+                chainId: sepolia.id
+              },
+              {
+                address: tokenAddress,
+                abi: erc20Abi,
+                functionName: 'name',
+                chainId: sepolia.id
+              }
+            ]
+          });
+          
+          if (results && !results.some(result => result.status === 'failure')) {
+            // Update the metadata cache
+            setTokenMetadataCache(prev => ({
+              ...prev,
+              [tokenAddress.toLowerCase()]: {
+                name: results[2].result as string || '',
+                symbol: results[0].result as string || 'UNKNOWN',
+                decimals: results[1].result as number || 18
+              }
+            }));
+          }
+        } catch (error) {
+          console.error("Error fetching token data:", error);
+          
+          // Fallback to direct contract calls if wagmi's readContracts fails
+          try {
+            // Try to get the symbol
+            const symbol = await publicClient.readContract({
+              address: tokenAddress,
+              abi: tokenAbi,
+              functionName: 'symbol',
+            });
+            
+            // Try to get the decimals
+            let decimals;
+            try {
+              decimals = await publicClient.readContract({
+                address: tokenAddress,
+                abi: tokenAbi,
+                functionName: 'decimals',
+              });
+            } catch (error) {
+              console.log("Error fetching token decimals:", error);
+              decimals = 18;
+            }
+            
+            // Update the metadata cache
+            setTokenMetadataCache(prev => ({
+              ...prev,
+              [tokenAddress.toLowerCase()]: {
+                name: '',
+                symbol: symbol as string,
+                decimals: decimals as number
+              }
+            }));
+          } catch (innerError) {
+            console.error("Error in fallback token fetch:", innerError);
+          }
+        }
+      };
+      
+      // Execute the fetch
+      fetchTokenData();
+    }
+    
+    // Return a placeholder while we're fetching
+    return 'UNKNOWN';
   };
   
   // Helper to get explorer URL
@@ -93,59 +318,137 @@ export default function EscrowsPage() {
     return getExplorerUrl(escrowContract.chainId, 'address', escrowContract.address);
   };
   
-  // Load all escrows
+  // Set up event listener for new escrows
   useEffect(() => {
-    const loadEscrows = async () => {
-      if (!nextDealId || !isConnected || !publicClient) {
-        return;
-      }
-      
-      setIsLoadingEscrows(true);
-      
-      try {
-        const maxId = Number(nextDealId);
-        const loadedEscrows: Escrow[] = [];
-        
-        // Load the latest 10 escrows (or all if less than 10), starting from ID 0
-        const startId = Math.max(0, maxId - 10);
-        
-        for (let i = startId; i < maxId; i++) {
-          try {
-            const dealData = await publicClient.readContract({
-              address: escrowContract.address as `0x${string}`,
-              abi: escrowContract.abi,
-              functionName: 'getDeal',
-              args: [BigInt(i)],
-            });
-            
-            if (dealData) {
-              loadedEscrows.push({
-                id: i,
-                data: {
-                  buyer: dealData[0] as `0x${string}`,
-                  seller: dealData[1] as `0x${string}`,
-                  arbiter: dealData[2] as `0x${string}`,
-                  token: dealData[3] as `0x${string}`,
-                  amount: dealData[4] as bigint,
-                  state: Number(dealData[5]),
-                  disputeReason: dealData[6] as string,
-                  createdAt: dealData[7] as bigint
-                }
-              });
-            }
-          } catch (error) {
-            console.error(`Error loading escrow ${i}:`, error);
-          }
-        }
-        
-        setEscrows(loadedEscrows);
-      } catch (error) {
-        console.error("Error loading escrows:", error);
-      } finally {
-        setIsLoadingEscrows(false);
-      }
-    };
+    if (!publicClient) return;
     
+    console.log("Setting up event listener for new escrows...");
+    
+    const unwatch = publicClient.watchContractEvent({
+      address: escrowContract.address as `0x${string}`,
+      abi: escrowContract.abi,
+      eventName: 'DealCreated',
+      onLogs: (logs) => {
+        console.log('New escrow detected:', logs);
+        
+        // Extract the deal ID from the log data (first parameter of the event)
+        const dealId = logs[0]?.args?.dealId;
+        if (dealId) {
+          // Fetch just this specific new escrow to add it to our list
+          fetchSingleEscrow(Number(dealId))
+            .then(newEscrow => {
+              if (newEscrow) {
+                setEscrows(prev => [newEscrow, ...prev]);
+                toast.success(`New escrow #${dealId} created!`);
+              }
+            })
+            .catch(error => {
+              console.error(`Error fetching new escrow #${dealId}:`, error);
+              // Fallback to loading all escrows if specific fetch fails
+              loadEscrows();
+            });
+        } else {
+          // If we can't get the ID, just reload all escrows
+          toast.info('New escrow created! Refreshing list...');
+          loadEscrows();
+        }
+      },
+    });
+    
+    // Clean up event listener
+    return () => {
+      unwatch();
+    };
+  }, [publicClient]);
+  
+  // Function to fetch a single escrow by ID
+  const fetchSingleEscrow = async (dealId: number): Promise<Escrow | null> => {
+    if (!publicClient) return null;
+    
+    try {
+      const dealData = await publicClient.readContract({
+        address: escrowContract.address as `0x${string}`,
+        abi: escrowContract.abi,
+        functionName: 'getDeal',
+        args: [BigInt(dealId)],
+      });
+      
+      if (dealData) {
+        return {
+          id: dealId,
+          data: {
+            buyer: dealData[0] as `0x${string}`,
+            seller: dealData[1] as `0x${string}`,
+            arbiter: dealData[2] as `0x${string}`,
+            token: dealData[3] as `0x${string}`,
+            amount: dealData[4] as bigint,
+            state: Number(dealData[5]),
+            disputeReason: dealData[6] as string,
+            createdAt: dealData[7] as bigint
+          }
+        };
+      }
+    } catch (error) {
+      console.error(`Error fetching escrow ${dealId}:`, error);
+    }
+    
+    return null;
+  };
+  
+  // Load all escrows
+  const loadEscrows = async () => {
+    if (!nextDealId || !isConnected || !publicClient) {
+      return;
+    }
+    
+    setIsLoadingEscrows(true);
+    
+    try {
+      const maxId = Number(nextDealId);
+      const loadedEscrows: Escrow[] = [];
+      
+      // Load the latest 10 escrows (or all if less than 10), starting from ID 0
+      const startId = Math.max(0, maxId - 10);
+      
+      for (let i = startId; i < maxId; i++) {
+        try {
+          const dealData = await publicClient.readContract({
+            address: escrowContract.address as `0x${string}`,
+            abi: escrowContract.abi,
+            functionName: 'getDeal',
+            args: [BigInt(i)],
+          });
+          
+          if (dealData) {
+            loadedEscrows.push({
+              id: i,
+              data: {
+                buyer: dealData[0] as `0x${string}`,
+                seller: dealData[1] as `0x${string}`,
+                arbiter: dealData[2] as `0x${string}`,
+                token: dealData[3] as `0x${string}`,
+                amount: dealData[4] as bigint,
+                state: Number(dealData[5]),
+                disputeReason: dealData[6] as string,
+                createdAt: dealData[7] as bigint
+              }
+            });
+          }
+        } catch (error) {
+          console.error(`Error loading escrow ${i}:`, error);
+        }
+      }
+      
+      setEscrows(loadedEscrows);
+    } catch (error) {
+      console.error("Error loading escrows:", error);
+    } finally {
+      setIsLoadingEscrows(false);
+    }
+  };
+  
+  // Load escrows when component mounts or nextDealId changes
+  useEffect(() => {
     loadEscrows();
   }, [nextDealId, isConnected, publicClient]);
   
@@ -332,7 +635,7 @@ export default function EscrowsPage() {
                   }
                   
                   return (
-                    <Link href={`/escrow/${id}`} key={id} className="transition-transform hover:scale-[1.02]">
+                    <div key={id} className="transition-transform hover:scale-[1.02] cursor-pointer" onClick={() => router.push(`/escrow/${id}`)}>
                       <Card className="h-full hover:shadow-md transition-shadow">
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                           <div className="flex items-center">
@@ -362,7 +665,7 @@ export default function EscrowsPage() {
                                   </div>
                                 )}
                                 <p className="font-semibold">
-                                  {formatAmount(data.amount, data.token)} {getTokenSymbol(data.token)}
+                                  {getFormattedAmount(id, data.amount, data.token)} {getTokenSymbol(data.token)}
                                 </p>
                               </div>
                             </div>
@@ -393,27 +696,19 @@ export default function EscrowsPage() {
                             <Button 
                               variant="outline" 
                               size="sm" 
-                              asChild
-                              className="text-xs"
-                              onClick={(e) => e.stopPropagation()}
+                              className="text-xs flex items-center gap-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(getExplorerLink(), '_blank', 'noopener,noreferrer');
+                              }}
                             >
-                              <a 
-                                href={getExplorerLink()} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1"
-                              >
-                                <ExternalLink className="h-3 w-3" />
-                                Explorer 🌐
-                              </a>
-                            </Button>
-                            <Button variant="ghost" size="sm" className="text-xs">
-                              View Details
+                              <ExternalLink className="h-3 w-3" />
+                              Explorer 🌐
                             </Button>
                           </div>
                         </CardFooter>
                       </Card>
-                    </Link>
+                    </div>
                   );
                 })}
               </div>
@@ -423,4 +718,4 @@ export default function EscrowsPage() {
       </main>
     </div>
   );
-} 
+}

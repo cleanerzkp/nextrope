@@ -17,11 +17,11 @@ export default function Home() {
             <div className="flex flex-col lg:flex-row items-center gap-10">
               <div className="lg:w-1/2 space-y-6">
                 <h1 className="text-5xl font-bold leading-tight">
-                  Secure Escrow for Your Digital Transactions
+                  Secure Blockchain Escrow Platform
                 </h1>
                 <p className="text-xl text-muted-foreground">
-                  NextTrope provides a trustless escrow service powered by blockchain technology. 
-                  Buy and sell with confidence, with funds secured by smart contracts.
+                  NextEscrow provides a trustless escrow service powered by blockchain technology.
+                  Buy and sell with confidence, without having to trust the other party.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 pt-6">
                   <Button asChild size="lg" className="gap-2">
@@ -41,7 +41,7 @@ export default function Home() {
                 <div className="relative w-full max-w-md aspect-square">
                   <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/5 rounded-xl"></div>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-6xl font-bold text-primary/30 tracking-tighter">NextTrope</div>
+                    <div className="text-6xl font-bold text-primary/30 tracking-tighter">NextEscrow</div>
                   </div>
                 </div>
               </div>
@@ -52,7 +52,7 @@ export default function Home() {
         {/* Features Section */}
         <section className="py-16 bg-muted/30">
           <div className="container mx-auto max-w-6xl px-4">
-            <h2 className="text-3xl font-bold text-center mb-12">Why Choose NextTrope</h2>
+            <h2 className="text-3xl font-bold text-center mb-12">Why Choose NextEscrow</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               <div className="bg-card p-6 rounded-lg shadow-sm">

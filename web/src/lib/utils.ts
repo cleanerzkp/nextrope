@@ -1,5 +1,7 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { createPublicClient, http, PublicClient } from 'viem'
+import { sepolia } from 'viem/chains'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -29,66 +31,129 @@ export const KNOWN_TOKEN_LOGOS: Record<string, string> = {
   // Add more as needed
 };
 
-/**
- * Fetches token metadata from Alchemy API
- * @param tokenAddress The contract address of the token
- * @param chainId The chain ID (1 for Ethereum mainnet, 11155111 for Sepolia)
- * @returns TokenMetadata object or null if not found
- */
-export async function fetchTokenMetadata(tokenAddress: string, chainId: number = 11155111): Promise<TokenMetadata | null> {
-  try {
-    // Get API key from environment
-    const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
-    
-    if (!apiKey) {
-      console.error("Alchemy API key not found");
-      return null;
-    }
-    
-    // Determine network based on chainId
-    const network = chainId === 1 ? 'eth-mainnet' : 'eth-sepolia';
-    
-    const url = `https://${network}.g.alchemy.com/v2/${apiKey}`;
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'alchemy_getTokenMetadata',
-        params: [tokenAddress]
-      })
-    });
-    
-    const data = await response.json();
-    
-    if (data.error || !data.result) {
-      console.error('Error fetching token metadata:', data.error);
-      return null;
-    }
+// Cache token decimals to avoid duplicate calls
+const tokenDecimalsCache: Record<string, number> = {}
 
-    const metadata = data.result;
-    const symbol = metadata.symbol || '???';
+// ERC20 ABI for token decimals
+const erc20Abi = [
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "decimals",
+    "outputs": [{ "name": "", "type": "uint8" }],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "symbol",
+    "outputs": [{ "name": "", "type": "string" }],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "name",
+    "outputs": [{ "name": "", "type": "string" }],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  }
+] as const
+
+// Function to get token decimals directly from the token contract
+export async function getTokenDecimals(tokenAddress: `0x${string}`): Promise<number> {
+  // Check cache first
+  const cacheKey = `${tokenAddress.toLowerCase()}`
+  if (tokenDecimalsCache[cacheKey] !== undefined) {
+    return tokenDecimalsCache[cacheKey]
+  }
+  
+  try {
+    // Get public client for the chain
+    const publicClient = getPublicClientForChain()
     
-    // Use fallback logo if Alchemy doesn't provide one
-    let logo = metadata.logo;
-    if (!logo && KNOWN_TOKEN_LOGOS[symbol]) {
-      logo = KNOWN_TOKEN_LOGOS[symbol];
+    // Call decimals() function on the token contract
+    const decimals = await publicClient.readContract({
+      address: tokenAddress,
+      abi: erc20Abi,
+      functionName: 'decimals',
+    }) as number
+    
+    // Cache the result
+    tokenDecimalsCache[cacheKey] = decimals
+    console.log(`Got token decimals for ${tokenAddress}: ${decimals}`)
+    
+    return decimals
+  } catch (error) {
+    console.error(`Error getting decimals for token ${tokenAddress}:`, error)
+    // Default to 18 decimals (most common) if we can't read from the contract
+    return 18
+  }
+}
+
+// Function to fetch token metadata (symbol, name, decimals)
+export async function fetchTokenMetadata(tokenAddress: `0x${string}`): Promise<TokenMetadata | null> {
+  try {
+    const publicClient = getPublicClientForChain()
+    
+    // Try to get decimals, symbol and name
+    const decimals = await getTokenDecimals(tokenAddress)
+    
+    let symbol = ""
+    try {
+      symbol = await publicClient.readContract({
+        address: tokenAddress,
+        abi: erc20Abi,
+        functionName: 'symbol',
+      }) as string
+    } catch (error) {
+      console.error(`Error getting symbol for token ${tokenAddress}:`, error)
+      symbol = tokenAddress.slice(0, 6)
+    }
+    
+    let name = ""
+    try {
+      name = await publicClient.readContract({
+        address: tokenAddress,
+        abi: erc20Abi,
+        functionName: 'name',
+      }) as string
+    } catch (error) {
+      console.error(`Error getting name for token ${tokenAddress}:`, error)
     }
     
     return {
-      name: metadata.name || 'Unknown Token',
+      name,
       symbol,
-      decimals: metadata.decimals || 18,
-      logo
-    };
+      decimals
+    }
   } catch (error) {
-    console.error('Error fetching token metadata:', error);
-    return null;
+    console.error(`Error fetching metadata for token ${tokenAddress}:`, error)
+    return null
   }
+}
+
+// Helper function to get a public client for a specific chain
+function getPublicClientForChain(): PublicClient {
+  // Use Alchemy API Key to construct the RPC URL
+  const alchemyApiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
+  const alchemyRpcUrl = alchemyApiKey 
+    ? `https://eth-sepolia.g.alchemy.com/v2/${alchemyApiKey}`
+    : process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL;
+  
+  console.log("Using RPC URL:", alchemyRpcUrl ? "Custom RPC URL" : "Default Public RPC");
+  
+  return createPublicClient({
+    chain: sepolia,
+    transport: alchemyRpcUrl 
+      ? http(alchemyRpcUrl)
+      : http()
+  });
 }
 
 /**
@@ -99,32 +164,6 @@ export async function fetchTokenMetadata(tokenAddress: string, chainId: number =
  * @returns The complete block explorer URL
  */
 export function getExplorerUrl(chainId: number, type: 'tx' | 'address' | 'token', value: string): string {
-  let baseUrl = '';
-  
-  // Set base URL based on chainId
-  switch (chainId) {
-    case 1: // Ethereum Mainnet
-      baseUrl = 'https://etherscan.io';
-      break;
-    case 11155111: // Sepolia
-      baseUrl = 'https://sepolia.etherscan.io';
-      break;
-    case 5: // Goerli
-      baseUrl = 'https://goerli.etherscan.io';
-      break;
-    case 42161: // Arbitrum One
-      baseUrl = 'https://arbiscan.io';
-      break;
-    case 10: // Optimism
-      baseUrl = 'https://optimistic.etherscan.io';
-      break;
-    case 8453: // Base
-      baseUrl = 'https://basescan.org';
-      break;
-    default:
-      baseUrl = 'https://etherscan.io';
-  }
-  
-  // Return the full URL
-  return `${baseUrl}/${type}/${value}`;
+  // Only support Sepolia since that's the only network we use
+  return `https://sepolia.etherscan.io/${type}/${value}`;
 }

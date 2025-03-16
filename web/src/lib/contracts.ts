@@ -622,6 +622,13 @@ export const knownTokens = [
     symbol: "USDC",
     decimals: 6,
     icon: "https://tokens.1inch.io/0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.png"
+  },
+  {
+    address: "0xaa8e23fb1079ea71e0a56f48a2aa51851d8433d0" as `0x${string}`,
+    name: "Sepolia USDT",
+    symbol: "USDT",
+    decimals: 6,
+    icon: "https://tokens.1inch.io/0xdac17f958d2ee523a2206206994597c13d831ec7.png"
   }
 ]
 

@@ -16,9 +16,9 @@ if (!projectId) {
 
 // Set up metadata
 const metadata = {
-  name: 'NextTrope',
-  description: 'NextTrope Escrow Platform',
-  url: 'https://nexttrope.com', 
+  name: 'NextEscrow',
+  description: 'NextEscrow Escrow Platform',
+  url: 'https://nextescrow.com', 
   icons: ['https://avatars.githubusercontent.com/u/179229932']
 }
 

@@ -71,7 +71,7 @@ export default function LearnMore() {
       <NavBar />
       
       <main className="container mx-auto py-8">
-        <h1 className="text-4xl font-bold mb-6">How NextTrope Works</h1>
+        <h1 className="text-4xl font-bold mb-6">How NextEscrow Works</h1>
         
         <div className="max-w-3xl mx-auto space-y-12">
           <section className="space-y-4">
@@ -140,10 +140,10 @@ export default function LearnMore() {
             <h2 className="text-2xl font-semibold">Security Features</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <h3 className="text-xl font-medium">Smart Contract Security</h3>
+                <h3 className="text-xl font-medium">Smart Contract Implementation</h3>
                 <p className="text-muted-foreground">
-                  All escrow agreements are secured by audited smart contracts that cannot be altered once deployed. 
-                  The code is open-source and transparent.
+                  Escrow agreements are managed by smart contracts implementing resistance to theft of funds. 
+                  The contract code is transparent and available on Etherscan.
                 </p>
               </div>
               <div className="space-y-2">
@@ -154,17 +154,17 @@ export default function LearnMore() {
                 </p>
               </div>
               <div className="space-y-2">
-                <h3 className="text-xl font-medium">Timelock Protection</h3>
+                <h3 className="text-xl font-medium">Dispute Resolution</h3>
                 <p className="text-muted-foreground">
-                  Escrows include a timelock feature that automatically resolves the transaction if 
-                  no action is taken within the specified timeframe.
+                  When disputes arise, a third-party arbiter can review the case and 
+                  make a decision on allocating the escrowed funds.
                 </p>
               </div>
               <div className="space-y-2">
-                <h3 className="text-xl font-medium">Trusted Arbitrators</h3>
+                <h3 className="text-xl font-medium">Third-Party Arbitration</h3>
                 <p className="text-muted-foreground">
-                  Our arbitrator network consists of trusted community members with high reputation scores 
-                  and a track record of fair dispute resolution.
+                  The arbitration system allows escrow participants to select a neutral third party
+                  to resolve disputes when they occur.
                 </p>
               </div>
             </div>

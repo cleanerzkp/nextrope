@@ -17,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NextTrope - Secure Escrow Platform",
-  description: "Secure escrow service for digital assets and physical goods",
+  title: "NextEscrow - Secure Escrow Platform",
+  description: "A secure escrow platform built on blockchain technology",
 };
 
 export default async function RootLayout({

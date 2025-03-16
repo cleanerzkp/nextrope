@@ -3,10 +3,17 @@ import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 import { mainnet, arbitrum, sepolia } from '@reown/appkit/networks'
 
 // Reown Project ID from environment variables
-export const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID
+export const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID || '';
+
+// Log project ID for debugging (will only show up in server logs/console)
+console.log("Reown Project ID is configured:", projectId ? "✅" : "❌");
 
 if (!projectId) {
-  throw new Error('Project ID is not defined. Please set NEXT_PUBLIC_REOWN_PROJECT_ID in your .env.local file')
+  console.error("Missing NEXT_PUBLIC_REOWN_PROJECT_ID environment variable");
+  // Don't throw error in production, as it would crash the app
+  if (process.env.NODE_ENV !== 'production') {
+    throw new Error('Project ID is not defined. Please set NEXT_PUBLIC_REOWN_PROJECT_ID in your .env.local file')
+  }
 }
 
 // Use all three networks

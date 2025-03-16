@@ -228,7 +228,7 @@ export default function CreateEscrow() {
           // Get the escrow ID from the result and redirect to its details page
           // This would typically be extracted from the transaction receipt/logs
           setTimeout(() => {
-            router.push("/escrows");
+    router.push("/escrows");
           }, 3000);
         }
       } catch (error: unknown) {
@@ -280,7 +280,7 @@ export default function CreateEscrow() {
     setIsLoadingToken(true);
     
     try {
-      const metadata = await fetchTokenMetadata(customTokenAddress, escrowContract.chainId);
+      const metadata = await fetchTokenMetadata(customTokenAddress);
       
       if (!metadata) {
         setTokenError("Could not find token metadata");
@@ -338,23 +338,23 @@ export default function CreateEscrow() {
         ) : (
           <div className={styles.formContainer}>
             <Card className={styles.formCard}>
-              <CardHeader>
-                <CardTitle>Escrow Details</CardTitle>
-                <CardDescription>
-                  Create a new escrow agreement for your transaction
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-6">
+            <CardHeader>
+              <CardTitle>Escrow Details</CardTitle>
+              <CardDescription>
+                Create a new escrow agreement for your transaction
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="flex items-center justify-between border p-4 rounded-md bg-muted/40">
                     <div>
                       <p className="text-sm font-medium">You are the Buyer</p>
                       <p className="text-xs text-muted-foreground mt-1">You&apos;ll pay for the item or service</p>
-                    </div>
-                    
+                </div>
+                
                     {userAddress && <AddressDisplay address={userAddress} size="sm" />}
-                  </div>
-                  
+                </div>
+                
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="title">Title (optional)</Label>
@@ -394,7 +394,7 @@ export default function CreateEscrow() {
                         </PopoverContent>
                       </Popover>
                     </div>
-                    <Input 
+                    <Input
                       id="title" 
                       placeholder="e.g. MacBook Pro (2023)" 
                       value={itemTitle}
@@ -415,13 +415,13 @@ export default function CreateEscrow() {
                     <p className="text-xs text-muted-foreground">
                       Note: Title and description are not stored on-chain.
                     </p>
-                  </div>
-                  
+                </div>
+                
                   <div className="space-y-2">
                     <Label htmlFor="counterparty" className={fieldErrors.counterparty ? "text-red-500" : ""}>
                       Seller (Counterparty) {fieldErrors.counterparty && <span className="text-red-500">*</span>}
                     </Label>
-                    <Select 
+                    <Select
                       value={counterpartyAddress} 
                       onValueChange={(value) => {
                         setCounterpartyAddress(value);
@@ -504,9 +504,9 @@ export default function CreateEscrow() {
                     
                     {fieldErrors.arbiter && (
                       <p className="text-xs text-red-500 mt-1">Arbiter is required</p>
-                    )}
-                  </div>
-                  
+                  )}
+                </div>
+                
                   {selectedArbiter && (
                     <div className="border p-4 rounded-md bg-muted/40">
                       <p className="text-sm font-medium mb-2">Selected Arbiter</p>
@@ -642,17 +642,17 @@ export default function CreateEscrow() {
                     </div>
                     
                     <div className="flex gap-2">
-                      <Input 
-                        id="amount" 
-                        type="number"
-                        min="0" 
+                    <Input
+                      id="amount"
+                      type="number"
+                      min="0"
                         step="any"
-                        placeholder="0.00" 
+                      placeholder="0.00"
                         value={amount}
                         onChange={handleAmountChange}
                         className={fieldErrors.amount ? "border-red-500 ring-red-500" : ""}
-                        required
-                      />
+                      required
+                    />
                       {selectedToken && (
                         <div className="ml-2 flex items-center gap-2 rounded-md border border-input px-3 py-2 bg-muted-foreground/10">
                           {selectedToken.icon ? (
@@ -748,8 +748,8 @@ export default function CreateEscrow() {
                       <li>You verify the delivery and release the funds</li>
                       <li>If there&apos;s a dispute, the arbiter will decide</li>
                     </ol>
-                  </div>
-                  
+                </div>
+                
                   <div>
                     <Button 
                       type="submit" 
@@ -764,11 +764,11 @@ export default function CreateEscrow() {
                       ) : (
                         "Create Escrow"
                       )}
-                    </Button>
+                </Button>
                   </div>
-                </form>
-              </CardContent>
-            </Card>
+              </form>
+            </CardContent>
+          </Card>
           </div>
         )}
       </main>

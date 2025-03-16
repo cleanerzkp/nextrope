@@ -1,14 +1,61 @@
-# NextTrope - Blockchain Escrow Platform
+# NextEscrow - Blockchain Escrow Platform
 
-A secure escrow platform for digital and physical goods built with Next.js, shadcn/ui, and Reown AppKit.
+A secure escrow platform for physical goods built with Next.js, shadcn/ui, and Reown AppKit.
+
+## Deployed Contract & Demo
+
+- **Contract Address**: [0x5e3b94f2ea6ed8ea07c83abfac8e9b6d52efa511](https://sepolia.etherscan.io/address/0x5e3b94f2ea6ed8ea07c83abfac8e9b6d52efa511#code)
+- **View on Etherscan**: 
+  - [Contract Code](https://sepolia.etherscan.io/address/0x5e3b94f2ea6ed8ea07c83abfac8e9b6d52efa511#code)
+  - [Read Contract](https://sepolia.etherscan.io/address/0x5e3b94f2ea6ed8ea07c83abfac8e9b6d52efa511#readContract)
+  - [Write Contract](https://sepolia.etherscan.io/address/0x5e3b94f2ea6ed8ea07c83abfac8e9b6d52efa511#writeContract)
+- **Live Demo**: [https://nextrope-git-main-cleanerzkps-projects.vercel.app/](https://nextrope-git-main-cleanerzkps-projects.vercel.app/)
 
 ## Features
 
-- **Secure Escrow**: Smart contract-based escrow system for secure transactions
-- **Dispute Resolution**: Third-party arbitration for resolving disputes
-- **Multi-Token Support**: Support for ETH and ERC-20 tokens
+- **Escrow System**: Smart contract-based escrow system for transactions of physical goods
+- **Dispute Resolution**: Third-party arbitration for resolving disputes between buyers and sellers
+- **Multi-Token Support**: Support for ETH and any ERC-20 token
 - **Wallet Integration**: Connect with various wallets via Reown AppKit
 - **Dark Mode**: Full dark mode support
+
+## Test Task Implemented
+
+This project implements a solution for the following test task:
+
+```
+Write a smart contract handling agreements between two users for selling physical items 
+in exchange for ETH or any ERC-20 token. In case of disputes, the role of an arbiter 
+resolving the dispute should be included.
+
+Acceptance criteria:
+1) Resistance to theft of funds from the contract
+2) Dispute resolution by a third party
+3) Support for any token in the ERC-20 standard
+
+Technical criteria:
+• Implementation in the Solidity language
+• Automated tests with the ability to generate a coverage report
+• Start-up documentation
+```
+
+Original task in Polish:
+```
+Zadanie testowe
+Napisz smart kontrakt obsługujący umowy między dwoma użytkownikami na sprzedaż przedmiotu
+materialnego w zamian za ETH lub dowolny token ERC-20. W przypadku sporów ma być
+uwzględniona rola arbitra rozstrzygająca spór.
+
+Kryteria akceptacyjne:
+1) Odporność na kradzież środków z kontraktu
+2) Rozstrzyganie sporu przez osobę trzecią
+3) Obsługa dowolnego tokena w standardzie ERC-20
+
+Kryteria techniczne:
+• Implementacja w języku solidity
+• Testy automatyczne z możliwością generowania raportu pokrycia
+• Dokumentacja uruchomieniowa
+```
 
 ## Technologies
 
@@ -29,6 +76,7 @@ web/
 │   │   ├── escrows/       # Escrow listings and details
 │   │   ├── learn/         # Educational content
 │   │   ├── profile/       # User profile pages
+│   │   └── ...           # Custom components
 │   ├── components/       # React components
 │   │   ├── ui/           # shadcn/ui components
 │   │   └── ...           # Custom components

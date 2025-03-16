@@ -56,6 +56,33 @@ const tokenAbi = [
     "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
     "stateMutability": "nonpayable",
     "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "decimals",
+    "outputs": [{ "name": "", "type": "uint8" }],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "symbol",
+    "outputs": [{ "name": "", "type": "string" }],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "constant": true,
+    "inputs": [],
+    "name": "name",
+    "outputs": [{ "name": "", "type": "string" }],
+    "payable": false,
+    "stateMutability": "view",
+    "type": "function"
   }
 ] as const;
 
@@ -103,6 +130,10 @@ export default function EscrowDetailsPage({ params }: { params: { id: string } }
   // Fetch the deal data
   const { data: dealArray, isLoading, error, refetch } = useDeal(dealId);
   
+  // Add state for token decimals
+  const [tokenDecimals, setTokenDecimals] = useState<number | null>(null);
+  const [tokenSymbol, setTokenSymbol] = useState<string | null>(null);
+  
   // Create a more structured object to work with, if dealArray is available
   const deal = useMemo(() => {
     if (!dealArray) return null;
@@ -121,6 +152,75 @@ export default function EscrowDetailsPage({ params }: { params: { id: string } }
       refundedBuyer: Boolean(Number(dealArray[5]) === 2)
     } as EscrowData;
   }, [dealArray]);
+  
+  // Fetch token decimals when deal data changes
+  useEffect(() => {
+    if (!deal || !deal.token) return;
+    
+    // Skip for ETH
+    if (deal.token.toLowerCase() === ETH_ADDRESS.toLowerCase()) {
+      setTokenDecimals(18);
+      setTokenSymbol("ETH");
+      return;
+    }
+    
+    // Check if it's in known tokens first
+    const knownToken = knownTokens.find(t => 
+      t.address.toLowerCase() === deal.token.toLowerCase()
+    );
+    
+    if (knownToken) {
+      setTokenDecimals(knownToken.decimals);
+      setTokenSymbol(knownToken.symbol);
+      return;
+    }
+    
+    // Otherwise fetch from blockchain using direct contract calls
+    const fetchData = async () => {
+      try {
+        if (!publicClient) {
+          console.error("Public client not available");
+          setTokenDecimals(18);
+          setTokenSymbol(deal.token.slice(0, 6));
+          return;
+        }
+        
+        console.log(`Fetching token data for ${deal.token}`);
+        
+        // Get token decimals
+        const decimals = await publicClient.readContract({
+          address: deal.token,
+          abi: tokenAbi,
+          functionName: 'decimals',
+        });
+        
+        setTokenDecimals(decimals as number);
+        console.log(`Token decimals: ${decimals}`);
+        
+        // Get token symbol
+        try {
+          const symbol = await publicClient.readContract({
+            address: deal.token,
+            abi: tokenAbi,
+            functionName: 'symbol',
+          });
+          
+          setTokenSymbol(symbol as string);
+          console.log(`Token symbol: ${symbol}`);
+        } catch (symbolError) {
+          console.error("Error fetching token symbol:", symbolError);
+          setTokenSymbol(deal.token.slice(0, 6));
+        }
+      } catch (error) {
+        console.error("Error fetching token data:", error);
+        // Default fallbacks
+        setTokenDecimals(18);
+        setTokenSymbol(deal.token.slice(0, 6));
+      }
+    };
+    
+    fetchData();
+  }, [deal]);
   
   // Dispute dialog state
   const [disputeDialogOpen, setDisputeDialogOpen] = useState(false);
@@ -157,11 +257,40 @@ export default function EscrowDetailsPage({ params }: { params: { id: string } }
   
   // Helper to format amount with proper decimals
   const formatAmount = (amount: bigint) => {
-    if (!tokenAddress || !token) {
+    if (!tokenAddress) {
       return formatEther(amount);
     }
     
-    return formatUnits(amount, token.decimals);
+    // Use our fetched token decimals if available
+    if (tokenDecimals !== null) {
+      return formatUnits(amount, tokenDecimals);
+    }
+    
+    // Check if it's a known token
+    if (token) {
+      return formatUnits(amount, token.decimals);
+    }
+    
+    // Default to 18 decimals if we don't have the info yet
+    return formatUnits(amount, 18);
+  };
+  
+  // Helper to get token symbol
+  const getTokenSymbol = () => {
+    if (!tokenAddress) return 'ETH';
+    
+    // Use our fetched token symbol if available
+    if (tokenSymbol) {
+      return tokenSymbol;
+    }
+    
+    // Check if it's a known token
+    if (token) {
+      return token.symbol;
+    }
+    
+    // Default to address format if we don't have the info yet
+    return `${tokenAddress.slice(0, 6)}...`;
   };
   
   // Add writeContract hook for token approvals
@@ -326,43 +455,65 @@ export default function EscrowDetailsPage({ params }: { params: { id: string } }
         abi: tokenAbi
       };
       
-      console.log("Checking token allowance for escrow deposit");
-      const allowance = await publicClient.readContract({
-        ...tokenContract,
-        functionName: 'allowance',
-        args: [address as `0x${string}`, escrowContract.address as `0x${string}`]
-      });
+      console.log(`Starting token deposit process for token ${deal.token}`);
+      console.log(`Required amount: ${deal.amount.toString()}`);
       
-      console.log(`Current allowance: ${allowance.toString()}, Required: ${deal.amount.toString()}`);
-      
-      // Step 2: If allowance is insufficient, request approval
-      if (BigInt(allowance) < deal.amount) {
-        toast.loading("Approving token transfer...");
-        
-        const approveTx = await writeContract({
+      try {
+        const allowance = await publicClient.readContract({
           ...tokenContract,
-          functionName: 'approve',
-          args: [escrowContract.address as `0x${string}`, deal.amount]
+          functionName: 'allowance',
+          args: [address as `0x${string}`, escrowContract.address as `0x${string}`]
         });
         
-        toast.dismiss();
-        toast.loading("Waiting for approval confirmation...");
+        console.log(`Current allowance: ${allowance.toString()}, Required: ${deal.amount.toString()}`);
         
-        // Wait for approval to be confirmed
-        await publicClient.waitForTransactionReceipt({ hash: approveTx });
+        // Step 2: If allowance is insufficient, request approval
+        if (BigInt(allowance) < deal.amount) {
+          toast.loading("Approving token transfer...");
+          console.log("Allowance insufficient, requesting approval");
+          
+          try {
+            // Only approve exactly the amount needed (more secure than unlimited)
+            const approveTx = await writeContract({
+              ...tokenContract,
+              functionName: 'approve',
+              args: [escrowContract.address as `0x${string}`, deal.amount]
+            });
+            
+            toast.dismiss();
+            toast.loading("Waiting for approval confirmation...");
+            console.log(`Approval transaction submitted: ${approveTx}`);
+            
+            // Wait for approval to be confirmed
+            const receipt = await publicClient.waitForTransactionReceipt({ hash: approveTx });
+            console.log("Approval confirmed:", receipt);
+            toast.dismiss();
+            toast.success("Token approval confirmed!");
+          } catch (approvalError) {
+            console.error("Error in token approval:", approvalError);
+            toast.dismiss();
+            toast.error(`Approval failed: ${(approvalError as Error).message}`);
+            return; // Exit early if approval fails
+          }
+        } else {
+          console.log("Allowance sufficient, proceeding with deposit");
+        }
+        
+        // Step 3: Now deposit the tokens
+        toast.loading("Depositing tokens to escrow...");
+        const depositResult = await depositToken({
+          dealId
+        });
+        console.log("Deposit result:", depositResult);
+        
         toast.dismiss();
-        toast.success("Token approval confirmed!");
+        toast.success("Tokens deposited successfully");
+        refetch();
+      } catch (allowanceError) {
+        console.error("Error checking allowance:", allowanceError);
+        toast.dismiss();
+        toast.error(`Failed to check token allowance: ${(allowanceError as Error).message}`);
       }
-      
-      // Step 3: Now deposit the tokens
-      toast.loading("Depositing tokens to escrow...");
-      await depositToken({
-        dealId
-      });
-      
-      toast.dismiss();
-      toast.success("Tokens deposited successfully");
-      refetch();
     } catch (error) {
       toast.dismiss();
       console.error("Error depositing tokens:", error);
@@ -1135,11 +1286,11 @@ export default function EscrowDetailsPage({ params }: { params: { id: string } }
                         </div>
                       ) : (
                         <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-[12px] font-bold">
-                          {token?.symbol?.substring(0, 1) || 'T'}
+                          {token?.symbol?.substring(0, 1) || getTokenSymbol().substring(0, 1)}
                         </div>
                       )}
                       <p className="text-xl font-bold">
-                        {formatAmount(deal.amount)} {token?.symbol || 'ETH'}
+                        {formatAmount(deal.amount)} {getTokenSymbol()}
                       </p>
                     </div>
                   </div>
