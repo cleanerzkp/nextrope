@@ -1,6 +1,69 @@
+'use client'
+
 import { NavBar } from "@/components/nav-bar";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { MermaidDiagram } from "@/components/mermaid-diagram";
+
+// Mermaid chart definition
+const escrowFlowChart = `graph TD
+    Start([Start]) --> TrustedArbiters[Trusted Arbiters Added]
+    TrustedArbiters --> BuyerCreates[Buyer Creates Deal]
+    BuyerCreates --> |"Specifies seller, arbiter,\\ntoken, amount"| DealCreated[Deal Created]
+    
+    DealCreated --> |"State: AWAITING_PAYMENT"| PaymentChoice{Early Options}
+    
+    PaymentChoice -->|"Continue"| PaymentType{Payment Type}
+    PaymentChoice -->|"Cancel"| DirectCancel[Direct Cancellation\\nEither party can cancel]
+    
+    DirectCancel --> |"State: CANCELLED"| End([End])
+    
+    PaymentType -->|ETH| BuyerDepositsETH[Buyer Deposits ETH]
+    PaymentType -->|ERC-20| BuyerDepositsToken[Buyer Deposits Token]
+    
+    BuyerDepositsETH --> PaymentComplete[Payment Complete]
+    BuyerDepositsToken --> PaymentComplete
+    
+    PaymentComplete --> |"State: AWAITING_DELIVERY"| DeliveryPhase{Delivery Phase}
+    
+    DeliveryPhase -->|"Ship"| SellerShips[Seller Confirms Shipment]
+    DeliveryPhase -->|"Dispute"| BuyerRaisesDispute1[Buyer Raises Dispute]
+    DeliveryPhase -->|"Dispute"| SellerRaisesDispute[Seller Raises Dispute]
+    
+    SellerShips --> |"State: SHIPPED"| ShippedPhase{Shipped Phase}
+    BuyerRaisesDispute1 --> |"State: DISPUTED"| DisputeCreated[Dispute Created]
+    SellerRaisesDispute --> |"State: DISPUTED"| DisputeCreated
+    
+    ShippedPhase -->|"Confirm"| BuyerConfirms[Buyer Confirms Receipt]
+    ShippedPhase -->|"Dispute"| BuyerRaisesDispute2[Buyer Raises Dispute]
+    ShippedPhase -->|"Cancel"| SellerRequestsCancel[Seller Requests Cancellation]
+    
+    BuyerConfirms --> |"State: COMPLETED"| FundsReleased[Funds Released to Seller]
+    BuyerRaisesDispute2 --> |"State: DISPUTED"| DisputeCreated
+    SellerRequestsCancel --> |"State: DISPUTED"| DisputeCreated
+    
+    DisputeCreated --> ArbiterResolves[Arbiter Resolves Dispute]
+    
+    ArbiterResolves --> Resolution{Arbiter Decision}
+    Resolution -->|"Favor Seller"| FundsReleased
+    Resolution -->|"Favor Buyer"| FundsReturned[Funds Returned to Buyer]
+    
+    FundsReleased --> |"State: COMPLETED"| End
+    FundsReturned --> |"State: REFUNDED"| End
+    
+    classDef state fill:#e1f5e1,stroke:#333,stroke-width:1px;
+    classDef action fill:#d1e7dd,stroke:#333,stroke-width:1px;
+    classDef decision fill:#f9f9f9,stroke:#333,stroke-width:1px;
+    classDef dispute fill:#ffe6e6,stroke:#333,stroke-width:1px;
+    classDef cancel fill:#fff4e6,stroke:#333,stroke-width:1px;
+    classDef terminal fill:#f8f9fa,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5;
+    
+    class BuyerCreates,SellerShips,BuyerConfirms,ArbiterResolves,BuyerDepositsETH,BuyerDepositsToken action;
+    class DealCreated,PaymentComplete,FundsReleased,FundsReturned,DisputeCreated state;
+    class PaymentChoice,PaymentType,DeliveryPhase,ShippedPhase,Resolution decision;
+    class Start,End terminal;
+    class BuyerRaisesDispute1,BuyerRaisesDispute2,SellerRaisesDispute dispute;
+    class DirectCancel,SellerRequestsCancel cancel;`;
 
 export default function LearnMore() {
   return (
@@ -44,6 +107,14 @@ export default function LearnMore() {
                 <p className="text-muted-foreground">After the buyer receives the item/service, they release the funds to the seller.</p>
               </div>
             </div>
+          </section>
+          
+          <section className="space-y-4">
+            <h2 className="text-2xl font-semibold">Detailed Escrow Flow</h2>
+            <MermaidDiagram 
+              chart={escrowFlowChart} 
+              caption="Escrow workflow diagram showing the full lifecycle of a transaction" 
+            />
           </section>
           
           <section className="space-y-4">

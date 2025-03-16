@@ -1,0 +1,106 @@
+.confettiContainer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.confettiPiece {
+  position: absolute;
+  top: -20px;
+  opacity: 0;
+  animation-name: confettiDrop;
+  animation-timing-function: ease-in-out;
+  animation-fill-mode: forwards;
+  transform-origin: center center;
+}
+
+/* Shape variations */
+.rectangle {
+  transform: rotate(10deg);
+}
+
+.circle {
+  border-radius: 50%;
+}
+
+.triangle {
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+}
+
+/* Color variations */
+.color1 {
+  background: #ffd700; /* Gold */
+}
+
+.color2 {
+  background: #00bcd4; /* Cyan */
+}
+
+.color3 {
+  background: #ff5722; /* Deep Orange */
+}
+
+.color4 {
+  background: #8bc34a; /* Light Green */
+}
+
+.color5 {
+  background: #9c27b0; /* Purple */
+}
+
+/* Even-indexed confetti pieces get a different animation */
+.confettiPiece:nth-child(even) {
+  animation-name: confettiDropAlt;
+}
+
+/* Some confetti pieces get a shimmer effect */
+.confettiPiece:nth-child(3n) {
+  background-image: linear-gradient(135deg, rgba(255,255,255,0.3) 0%, transparent 50%, rgba(255,255,255,0.3) 100%);
+}
+
+@keyframes confettiDrop {
+  0% {
+    opacity: 1;
+    transform: translateY(0) rotateZ(0);
+  }
+  25% {
+    transform: translateY(25vh) rotateZ(90deg) translateX(10px);
+  }
+  50% {
+    transform: translateY(50vh) rotateZ(180deg) translateX(-15px);
+  }
+  75% {
+    opacity: 1;
+    transform: translateY(75vh) rotateZ(270deg) translateX(10px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(100vh) rotateZ(360deg);
+  }
+}
+
+@keyframes confettiDropAlt {
+  0% {
+    opacity: 1;
+    transform: translateY(0) rotateZ(0);
+  }
+  25% {
+    transform: translateY(25vh) rotateZ(-90deg) translateX(-15px);
+  }
+  50% {
+    transform: translateY(50vh) rotateZ(-180deg) translateX(10px);
+  }
+  75% {
+    opacity: 1;
+    transform: translateY(75vh) rotateZ(-270deg) translateX(-5px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(100vh) rotateZ(-360deg);
+  }
+} 

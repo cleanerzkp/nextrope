@@ -1,112 +1,147 @@
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+'use client'
+
 import { NavBar } from "@/components/nav-bar";
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { ArrowRight, Shield, Globe, Clock, Users, CheckCircle } from "lucide-react";
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <NavBar />
       
-      <main className="container mx-auto py-8">
-        <div className="flex flex-col items-center justify-center text-center mt-12 mb-16">
-          <h1 className="text-4xl md:text-6xl font-bold tracking-tighter mb-4">
-            Secure Escrow for Digital & Physical Assets
-          </h1>
-          <p className="text-xl md:text-2xl text-muted-foreground max-w-[800px] mb-8">
-            Buy and sell confidently with blockchain-powered escrow protection and dispute resolution
-          </p>
-          <div className="flex gap-4">
-            <Link href="/create">
-              <Button size="lg">Create Escrow</Button>
-            </Link>
-            <Link href="/learn">
-              <Button variant="outline" size="lg">Learn More</Button>
-            </Link>
-          </div>
-        </div>
-        
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mt-12">
-          <Card>
-            <CardHeader className="text-center">
-              <CardTitle>Secure Escrow</CardTitle>
-              <CardDescription>Protection for both buyers and sellers</CardDescription>
-            </CardHeader>
-            <CardContent className="text-center">
-              <p>Smart contracts secure funds until both parties are satisfied with the transaction.</p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="text-center">
-              <CardTitle>Dispute Resolution</CardTitle>
-              <CardDescription>Fair resolution of conflicts</CardDescription>
-            </CardHeader>
-            <CardContent className="text-center">
-              <p>Trusted arbitrators help resolve disputes when parties cannot agree.</p>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="text-center">
-              <CardTitle>Multi-Token Support</CardTitle>
-              <CardDescription>Flexible payment options</CardDescription>
-            </CardHeader>
-            <CardContent className="text-center">
-              <p>Support for ETH and ERC-20 tokens for all your transaction needs.</p>
-            </CardContent>
-          </Card>
-        </div>
-        
-        <div className="mt-24 mb-12 text-center">
-          <h2 className="text-3xl font-bold mb-4">How It Works</h2>
-          <div className="grid gap-6 md:grid-cols-3 mt-8">
-            <div className="flex flex-col items-center">
-              <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold mb-4">1</div>
-              <h3 className="text-xl font-medium mb-2">Create Escrow</h3>
-              <p className="text-muted-foreground">Seller creates an escrow and sets terms</p>
-            </div>
-            
-            <div className="flex flex-col items-center">
-              <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold mb-4">2</div>
-              <h3 className="text-xl font-medium mb-2">Buyer Deposits</h3>
-              <p className="text-muted-foreground">Buyer agrees to terms and deposits funds</p>
-            </div>
-            
-            <div className="flex flex-col items-center">
-              <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold mb-4">3</div>
-              <h3 className="text-xl font-medium mb-2">Release Funds</h3>
-              <p className="text-muted-foreground">Funds released after transaction completion</p>
+      <main>
+        {/* Hero Section */}
+        <section className="py-20 px-4">
+          <div className="container mx-auto max-w-6xl">
+            <div className="flex flex-col lg:flex-row items-center gap-10">
+              <div className="lg:w-1/2 space-y-6">
+                <h1 className="text-5xl font-bold leading-tight">
+                  Secure Escrow for Your Digital Transactions
+                </h1>
+                <p className="text-xl text-muted-foreground">
+                  NextTrope provides a trustless escrow service powered by blockchain technology. 
+                  Buy and sell with confidence, with funds secured by smart contracts.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4 pt-6">
+                  <Button asChild size="lg" className="gap-2">
+                    <Link href="/escrows">
+                      Get Started
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" size="lg">
+                    <Link href="/learn">
+                      Learn More
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+              <div className="lg:w-1/2 flex justify-center">
+                <div className="relative w-full max-w-md aspect-square">
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/5 rounded-xl"></div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="text-6xl font-bold text-primary/30 tracking-tighter">NextTrope</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        </section>
+        
+        {/* Features Section */}
+        <section className="py-16 bg-muted/30">
+          <div className="container mx-auto max-w-6xl px-4">
+            <h2 className="text-3xl font-bold text-center mb-12">Why Choose NextTrope</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div className="bg-card p-6 rounded-lg shadow-sm">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                  <Shield className="h-6 w-6 text-primary" />
+                </div>
+                <h3 className="text-xl font-medium mb-2">Secure Smart Contracts</h3>
+                <p className="text-muted-foreground">
+                  All escrow agreements are secured by audited smart contracts that cannot be altered once deployed.
+                </p>
+              </div>
+              
+              <div className="bg-card p-6 rounded-lg shadow-sm">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                  <Globe className="h-6 w-6 text-primary" />
+                </div>
+                <h3 className="text-xl font-medium mb-2">Multi-Token Support</h3>
+                <p className="text-muted-foreground">
+                  Our platform supports both ETH and any ERC-20 token, giving you flexibility in how you conduct transactions.
+                </p>
+              </div>
+              
+              <div className="bg-card p-6 rounded-lg shadow-sm">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                  <Users className="h-6 w-6 text-primary" />
+                </div>
+                <h3 className="text-xl font-medium mb-2">Trusted Arbitrators</h3>
+                <p className="text-muted-foreground">
+                  Our arbitrator network consists of trusted community members with a track record of fair dispute resolution.
+                </p>
+              </div>
+              
+              <div className="bg-card p-6 rounded-lg shadow-sm">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                  <CheckCircle className="h-6 w-6 text-primary" />
+                </div>
+                <h3 className="text-xl font-medium mb-2">Simple Process</h3>
+                <p className="text-muted-foreground">
+                  Create an escrow, deposit funds, and release payment when satisfied - all with a user-friendly interface.
+                </p>
+              </div>
+              
+              <div className="bg-card p-6 rounded-lg shadow-sm">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                  <Clock className="h-6 w-6 text-primary" />
+                </div>
+                <h3 className="text-xl font-medium mb-2">Quick Resolution</h3>
+                <p className="text-muted-foreground">
+                  In case of disputes, our arbitration process ensures quick and fair resolution for all parties involved.
+                </p>
+              </div>
+              
+              <div className="bg-card p-6 rounded-lg shadow-sm">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                  <Shield className="h-6 w-6 text-primary" />
+                </div>
+                <h3 className="text-xl font-medium mb-2">No Middlemen</h3>
+                <p className="text-muted-foreground">
+                  Eliminate expensive middlemen and reduce fees while maintaining security through blockchain technology.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+        
+        {/* CTA Section */}
+        <section className="py-20">
+          <div className="container mx-auto max-w-4xl px-4 text-center">
+            <h2 className="text-3xl font-bold mb-6">Ready to Get Started?</h2>
+            <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+              Connect your wallet and create your first escrow agreement in minutes. 
+              Experience the security and convenience of blockchain escrow.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button asChild size="lg" className="gap-2">
+                <Link href="/escrows">
+                  View Escrows
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+              <Button asChild variant="outline" size="lg">
+                <Link href="/create">
+                  Create New Escrow
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </section>
       </main>
-      
-      <footer className="border-t py-6 md:py-8">
-        <div className="container mx-auto flex flex-col md:flex-row justify-between items-center">
-          <div className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} NextTrope. All rights reserved.
-          </div>
-          <div className="flex gap-4 mt-4 md:mt-0">
-            <Link href="/terms">
-              <Button variant="ghost" size="sm">
-                Terms
-              </Button>
-            </Link>
-            <Link href="/privacy">
-              <Button variant="ghost" size="sm">
-                Privacy
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
