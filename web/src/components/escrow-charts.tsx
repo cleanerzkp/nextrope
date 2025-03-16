@@ -148,7 +148,7 @@ export function EscrowCharts() {
   
   return (
     <div className="w-full py-8 bg-muted/30">
-      <div className="container mx-auto max-w-6xl">
+      <div className="container mx-auto max-w-6xl px-4 sm:px-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-xl">Platform Statistics</CardTitle>
@@ -157,21 +157,21 @@ export function EscrowCharts() {
           
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-              <TabsList>
+              <TabsList className="w-full justify-center md:w-auto md:justify-start">
                 <TabsTrigger value="deals">Escrow States</TabsTrigger>
                 <TabsTrigger value="tokens">Token Usage</TabsTrigger>
               </TabsList>
               
               <TabsContent value="deals" className="mt-0">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                  <div className="flex flex-col items-center text-center md:items-start md:text-left">
                     <h3 className="text-lg font-medium mb-4">Escrow State Distribution</h3>
                     <div className="flex items-center mb-2">
                       <p className="text-4xl font-bold">{totalEscrows}</p>
                       <span className="ml-2 text-sm text-muted-foreground">Total Escrows</span>
                     </div>
                     
-                    <div className="space-y-2 mt-6">
+                    <div className="space-y-2 mt-6 w-full max-w-[280px] md:max-w-none">
                       {stateDistribution.map(item => (
                         <div key={item.state} className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
@@ -187,8 +187,8 @@ export function EscrowCharts() {
                     </div>
                   </div>
                   
-                  <div className="flex items-center justify-center">
-                    <div className="h-[300px] w-full">
+                  <div className="flex items-center justify-center mt-4 md:mt-0">
+                    <div className="h-[250px] md:h-[300px] w-full max-w-[350px] md:max-w-none">
                       <ChartContainer config={dealsChartConfig} className="h-full w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
@@ -231,15 +231,15 @@ export function EscrowCharts() {
               </TabsContent>
               
               <TabsContent value="tokens" className="mt-0">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                  <div className="flex flex-col items-center text-center md:items-start md:text-left">
                     <h3 className="text-lg font-medium mb-4">Token Usage</h3>
                     <div className="flex items-center mb-2">
                       <p className="text-4xl font-bold">{tokenDistribution.length}</p>
                       <span className="ml-2 text-sm text-muted-foreground">Unique Tokens</span>
                     </div>
                     
-                    <div className="space-y-2 mt-6">
+                    <div className="space-y-2 mt-6 w-full max-w-[280px] md:max-w-none">
                       {tokenDistribution.map((item, index) => (
                         <div key={item.token} className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
@@ -271,9 +271,9 @@ export function EscrowCharts() {
                     </div>
                   </div>
                   
-                  <div className="flex items-center justify-center">
+                  <div className="flex items-center justify-center mt-4 md:mt-0">
                     {tokenDistribution.length > 0 ? (
-                      <div className="h-[300px] w-full">
+                      <div className="h-[250px] md:h-[300px] w-full max-w-[350px] md:max-w-none">
                         <ChartContainer config={tokensChartConfig} className="h-full w-full">
                           <ResponsiveContainer width="100%" height="100%">
                             <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>

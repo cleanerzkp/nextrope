@@ -4,7 +4,13 @@ import * as React from "react"
 import { Moon, Sun, Monitor } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useState, useEffect } from "react"
-import { cn } from "@/lib/utils"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Button } from "@/components/ui/button"
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
@@ -18,47 +24,39 @@ export function ThemeToggle() {
   if (!mounted) {
     // Return a placeholder with the same dimensions to prevent layout shift
     return (
-      <div className="h-10 w-[140px] rounded-full border bg-background"></div>
+      <div className="h-9 w-9 rounded-md"></div>
     )
   }
 
+  // Get the current theme icon
+  const ThemeIcon = () => {
+    if (theme === 'light') return <Sun className="h-[1.2rem] w-[1.2rem]" />
+    if (theme === 'dark') return <Moon className="h-[1.2rem] w-[1.2rem]" />
+    return <Monitor className="h-[1.2rem] w-[1.2rem]" />
+  }
+
   return (
-    <div className="relative flex h-10 items-center rounded-full border p-1.5 gap-2">
-      {/* System option */}
-      <button
-        className={cn(
-          "relative flex h-7 w-7 items-center justify-center rounded-full transition-colors",
-          theme === "system" ? "bg-gray-200 dark:bg-gray-700" : "hover:bg-muted"
-        )}
-        onClick={() => setTheme("system")}
-        aria-label="System theme"
-      >
-        <Monitor className="h-4 w-4" />
-      </button>
-      
-      {/* Light option */}
-      <button
-        className={cn(
-          "relative flex h-7 w-7 items-center justify-center rounded-full transition-colors",
-          theme === "light" ? "bg-white text-black" : "hover:bg-muted"
-        )}
-        onClick={() => setTheme("light")}
-        aria-label="Light theme"
-      >
-        <Sun className="h-4 w-4" />
-      </button>
-      
-      {/* Dark option */}
-      <button
-        className={cn(
-          "relative flex h-7 w-7 items-center justify-center rounded-full transition-colors",
-          theme === "dark" ? "bg-gray-900 text-white" : "hover:bg-muted"
-        )}
-        onClick={() => setTheme("dark")}
-        aria-label="Dark theme"
-      >
-        <Moon className="h-4 w-4" />
-      </button>
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-9 w-9">
+          <ThemeIcon />
+          <span className="sr-only">Toggle theme</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => setTheme("light")}>
+          <Sun className="mr-2 h-4 w-4" />
+          <span>Light</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("dark")}>
+          <Moon className="mr-2 h-4 w-4" />
+          <span>Dark</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setTheme("system")}>
+          <Monitor className="mr-2 h-4 w-4" />
+          <span>System</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 } 
