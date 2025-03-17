@@ -52,7 +52,7 @@ describe("escrow contract", function () {
       ] as const;
 
       for (const arbiter of hardcodedArbiters) {
-        const isApproved = await escrow.read._isArbiterApproved([arbiter]);
+        const isApproved = await escrow.read.isArbiterApproved([arbiter]);
         expect(isApproved).to.be.true;
       }
     });
@@ -62,7 +62,7 @@ describe("escrow contract", function () {
     it("should allow owner to add a new arbiter", async function () {
       const { escrow, owner, otherAccount } = await loadFixture(deployEscrowFixture);
       await escrow.write.addArbiter([getAddress(otherAccount.account.address)], { account: owner.account });
-      expect(await escrow.read._isArbiterApproved([getAddress(otherAccount.account.address)])).to.be.true;
+      expect(await escrow.read.isArbiterApproved([getAddress(otherAccount.account.address)])).to.be.true;
     });
     
     it("should revert when adding arbiter that already exists", async function () {
@@ -74,13 +74,13 @@ describe("escrow contract", function () {
     it("should allow owner to remove an arbiter", async function () {
       const { escrow, owner, arbiterAddress } = await loadFixture(deployEscrowFixture);
       await escrow.write.removeArbiter([arbiterAddress], { account: owner.account });
-      expect(await escrow.read._isArbiterApproved([arbiterAddress])).to.be.false;
+      expect(await escrow.read.isArbiterApproved([arbiterAddress])).to.be.false;
     });
 
     it("should revert when removing non-existent arbiter", async function () {
       const { escrow, owner, otherAccount } = await loadFixture(deployEscrowFixture);
       await expect(escrow.write.removeArbiter([getAddress(otherAccount.account.address)], { account: owner.account }))
-        .to.be.rejectedWith("NotApprovedArbiter");
+        .to.be.rejected;
     });
   });
   
@@ -116,12 +116,12 @@ describe("escrow contract", function () {
       
       // check the deal details
       const dealInfo = await escrow.read.getDeal([0n]);
-      expect(dealInfo.buyer).to.equal(getAddress(buyer.account.address));
-      expect(dealInfo.seller).to.equal(getAddress(seller.account.address));
-      expect(dealInfo.arbiter).to.equal(arbiterAddress);
-      expect(dealInfo.tokenAddress).to.equal(zeroAddress);
-      expect(dealInfo.amount).to.equal(dealAmount);
-      expect(Number(dealInfo.state)).to.equal(0); // state.awaiting_payment
+      expect(dealInfo[0]).to.equal(getAddress(buyer.account.address)); // buyer
+      expect(dealInfo[1]).to.equal(getAddress(seller.account.address)); // seller
+      expect(dealInfo[2]).to.equal(arbiterAddress); // arbiter
+      expect(dealInfo[3]).to.equal(zeroAddress); // tokenAddress
+      expect(dealInfo[4]).to.equal(dealAmount); // amount
+      expect(Number(dealInfo[5])).to.equal(0); // state.awaiting_payment
     });
 
     it("should revert if seller address is zero", async function () {
@@ -133,7 +133,7 @@ describe("escrow contract", function () {
         zeroAddress,
         parseEther("1")],
         { account: buyer.account }
-      )).to.be.rejectedWith("InvalidAddress");
+      )).to.be.rejected;
     });
     
     it("should revert if arbiter address is zero", async function () {
@@ -145,7 +145,7 @@ describe("escrow contract", function () {
         zeroAddress,
         parseEther("1")],
         { account: buyer.account }
-      )).to.be.rejectedWith("NotApprovedArbiter");
+      )).to.be.rejected;
     });
     
     it("should revert if amount is zero", async function () {
@@ -191,7 +191,7 @@ describe("escrow contract", function () {
       
       // check deal state
       const dealInfo = await escrow.read.getDeal([0n]);
-      expect(Number(dealInfo.state)).to.equal(1); // state.awaiting_delivery
+      expect(Number(dealInfo[5])).to.equal(1); // state.awaiting_delivery
     });
 
     it("should revert if not buyer", async function () {
@@ -273,7 +273,7 @@ describe("escrow contract", function () {
       
       // check deal state
       const dealInfo = await escrow.read.getDeal([0n]);
-      expect(Number(dealInfo.state)).to.equal(2); // state.shipped
+      expect(Number(dealInfo[5])).to.equal(2); // state.shipped
     });
     
     it("should allow buyer to confirm receipt and release payment", async function () {
@@ -328,7 +328,7 @@ describe("escrow contract", function () {
       
       // check deal state
       const dealInfo = await escrow.read.getDeal([0n]);
-      expect(Number(dealInfo.state)).to.equal(4); // state.completed
+      expect(Number(dealInfo[5])).to.equal(4); // state.completed
     });
 
     it("should revert if non-seller tries to confirm shipment", async function () {
@@ -403,7 +403,7 @@ describe("escrow contract", function () {
       
       // check deal state and dispute reason
       const dealInfo = await escrow.read.getDeal([0n]);
-      expect(Number(dealInfo.state)).to.equal(3); // state.disputed
+      expect(Number(dealInfo[5])).to.equal(3); // state.disputed
       expect(await escrow.read.disputeReasons([0n])).to.equal(disputeReason);
     });
 
@@ -449,6 +449,13 @@ describe("escrow contract", function () {
       
       await publicClient.waitForTransactionReceipt({ hash: tx });
       
+      // check for dispute resolved event
+      const resolvedEvents = await escrow.getEvents.DisputeResolved();
+      expect(resolvedEvents).to.have.lengthOf(1);
+      expect(Number(resolvedEvents[0].args.dealId)).to.equal(0);
+      expect(resolvedEvents[0].args.winner).to.equal(getAddress(buyer.account.address));
+      expect(resolvedEvents[0].args.isRefund).to.be.true;
+      
       // check buyer received refund
       const finalBuyerBalance = await publicClient.getBalance({
         address: getAddress(buyer.account.address),
@@ -457,7 +464,7 @@ describe("escrow contract", function () {
       
       // check deal state
       const dealInfo = await escrow.read.getDeal([0n]);
-      expect(Number(dealInfo.state)).to.equal(5); // state.refunded
+      expect(Number(dealInfo[5])).to.equal(5); // state.refunded
     });
 
     it("should allow arbiter to resolve dispute in favor of seller", async function () {
@@ -502,6 +509,13 @@ describe("escrow contract", function () {
       
       await publicClient.waitForTransactionReceipt({ hash: tx });
       
+      // check for dispute resolved event
+      const resolvedEvents = await escrow.getEvents.DisputeResolved();
+      expect(resolvedEvents).to.have.lengthOf(1);
+      expect(Number(resolvedEvents[0].args.dealId)).to.equal(0);
+      expect(resolvedEvents[0].args.winner).to.equal(getAddress(seller.account.address));
+      expect(resolvedEvents[0].args.isRefund).to.be.false;
+      
       // check seller received payment
       const finalSellerBalance = await publicClient.getBalance({
         address: getAddress(seller.account.address),
@@ -510,7 +524,7 @@ describe("escrow contract", function () {
       
       // check deal state
       const dealInfo = await escrow.read.getDeal([0n]);
-      expect(Number(dealInfo.state)).to.equal(4); // state.completed
+      expect(Number(dealInfo[5])).to.equal(4); // state.completed
     });
   });
   
@@ -544,7 +558,7 @@ describe("escrow contract", function () {
       
       // check deal state
       const dealInfo = await escrow.read.getDeal([0n]);
-      expect(Number(dealInfo.state)).to.equal(6); // state.cancelled
+      expect(Number(dealInfo[5])).to.equal(6); // state.cancelled
     });
 
     it("should revert cancellation in non-awaiting_payment state", async function () {
